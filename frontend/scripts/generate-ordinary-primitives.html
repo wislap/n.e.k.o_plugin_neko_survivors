@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>普通场景原版渐变导出</title>
+<body><h1>普通场景原版渐变导出</h1><p>仅离线生成资源；不被应用入口导入。每张图片保留原版128² radial primitive或三段金属纵向渐变。</p><div id="downloads"></div><pre id="metadata">生成中</pre>
+<script type="module">
+import { WEAPONS } from '/src/game/content/weapons.ts';
+const provenance = {"referenceCommit": "5ade0bb30726dc6207e616f1560af42cb99b6fb4", "sourcePath": "static/game/src/systems/renderer.js", "sourceSha256": "a4fbfa0cdf2a94a3114377c0dfae55e8c854e0db2afb5907849d593992f73630", "glowSourceSha256": "60eb2fd2f3d55292a0854e081cde2512f4e9254646219a0d987f63ba408197be", "metalSourceSha256": "0a6c021510079127503482f48a73bb8d2ee1c58e5b6f929cf9875628b7eef074", "size": [128, 128], "glowStops": [[0, "#ffffff"], [0.45, "<color>"], [1, "rgba(0,0,0,0)"]], "metalStops": [[0, "#3d4356"], [0.45, "#2a2e3d"], [1, "#1c1f2b"]]};
+const files = [];
+function canvas() { const image = document.createElement('canvas'); image.width = image.height = 128; return image; }
+async function exportImage(name, image, detail) {
+  const url = image.toDataURL('image/png');
+  const bytes = Uint8Array.from(atob(url.split(',')[1]), character => character.charCodeAt(0));
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), n => n.toString(16).padStart(2,'0')).join('');
+  const link = document.createElement('a'); link.download = name; link.href = url; link.textContent = name; link.style.display = 'block';
+  document.getElementById('downloads').append(link);
+  files.push({ name, width: 128, height: 128, sha256: digest, ...detail });
+}
+const metal = canvas(), metalContext = metal.getContext('2d');
+const gradient = metalContext.createLinearGradient(0, 0, 0, 128);
+gradient.addColorStop(0, '#3d4356'); gradient.addColorStop(.45, '#2a2e3d'); gradient.addColorStop(1, '#1c1f2b');
+metalContext.fillStyle = gradient; metalContext.fillRect(0, 0, 128, 128);
+await exportImage('metal.png', metal, { primitive: 'linear', clipping: 'runtime hexagon', alpha: 1 });
+// Only these Weapon._fire cases create player bullets; deploy creates turrets and turret bullets.
+// Pet attacks deal direct damage and character/item colors do not request this ordinary primitive.
+const emitters = WEAPONS.filter(weapon => ['shot', 'spread', 'homing', 'bounce', 'deploy'].includes(weapon.behavior));
+const colors = [...new Set(emitters.map(weapon => weapon.color))].sort();
+provenance.paletteSource = { consumers: ['Weapon._fire shot/spread/homing/bounce', 'Turret deploy'], emitters: emitters.map(({ id, color, behavior }) => ({ id, color, behavior })) };
+for (const color of colors) {
+  if (!/^#[0-9a-f]{6}$/i.test(color)) throw new Error(`Unsupported source color: ${color}`);
+  const image = canvas(), context = image.getContext('2d');
+  const glow = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+  glow.addColorStop(0, '#ffffff'); glow.addColorStop(.45, color); glow.addColorStop(1, 'rgba(0,0,0,0)');
+  context.fillStyle = glow; context.fillRect(0, 0, 128, 128);
+  await exportImage(`glow_${color.slice(1).toLowerCase()}.png`, image, { primitive: 'radial', color });
+}
+document.getElementById('metadata').textContent = JSON.stringify({ ...provenance, files }, null, 2);
+document.documentElement.dataset.ready = 'true';
+</script></body></html>

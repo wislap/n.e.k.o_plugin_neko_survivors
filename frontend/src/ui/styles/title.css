@@ -1,0 +1,97 @@
+/* 标题页基础布局；只作用于 title-* 类。 */
+.title-scene {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+/* 全屏容器要盖住 canvas 的星空（overlay 本身已居中，这里放宽） */
+#overlay .title-scene { flex: 1; }
+
+/* 标题光点参数由React内联提供。 */
+.title-stars { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+.title-stars i {
+  position: absolute; bottom: -12px;
+  border-radius: 50%;
+  opacity: 0;
+  animation-name: titleRise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  box-shadow: 0 0 6px currentColor, 0 0 14px currentColor;
+}
+@keyframes titleRise {
+  0%   { transform: translateY(0); opacity: 0; }
+  8%   { opacity: .85; }
+  85%  { opacity: .5; }
+  100% { transform: translateY(-108vh); opacity: 0; }
+}
+
+/* ---- 暗角：极暗紫红，压住四边把焦点让给面板 ---- */
+
+/* ---- 面板：毛玻璃 + 哥特细边框微光 + 四角发光小猫爪 ---- */
+.title-panel {
+  position: relative;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+/* 哥特内衬细线（双框质感） */
+.title-panel::after {
+  content: ''; position: absolute; inset: 6px;
+  border: 1px solid rgba(255,170,215,.13); pointer-events: none;
+}
+/* 四角发光小猫爪（复用 index.html 的 #i-paw symbol） */
+.title-panel .corner-paw {
+  position: absolute; width: 20px; height: 20px;
+  pointer-events: none;
+}
+.title-panel .corner-paw:nth-of-type(1) { top: 7px; left: 7px; transform: rotate(-18deg); }
+.title-panel .corner-paw:nth-of-type(2) { top: 7px; right: 7px; transform: rotate(18deg) scaleX(-1); }
+.title-panel .corner-paw:nth-of-type(3) { bottom: 7px; left: 7px; transform: rotate(15deg) scaleY(-1); }
+.title-panel .corner-paw:nth-of-type(4) { bottom: 7px; right: 7px; transform: rotate(-15deg) scale(-1); }
+
+/* ---- 猫耳标题：粗黑描边（下层重影字）+ 粉紫外发光（上层渐变字）---- */
+.title-head {
+  display: flex; align-items: flex-start; justify-content: center;
+  gap: 14px; margin-bottom: 6px;
+}
+/* 标题基础层提供描边与字芯层次，最终外观由后续主题规则覆盖。 */
+.title-head h1 {
+  position: relative; margin: 0;
+  font-size: 46px; font-weight: 900; letter-spacing: .06em;
+  color: transparent;
+}
+/* 两侧小猫耳：外层深色描边 + 内层粉色绒 + 发光 */
+.title-head .ear {
+  position: relative; width: 34px; height: 30px; margin-top: -6px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.title-head .ear::after {
+  content: ''; position: absolute; left: 50%; bottom: 3px;
+  width: 16px; height: 14px; transform: translateX(-50%);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.title-head .ear.left  { transform: rotate(-14deg); }
+.title-head .ear.right { transform: rotate(14deg); }
+
+/* ---- 主按钮：独占一行、更大、悬停发光放大 ---- */
+.btn-row-main { margin-top: 16px; }
+.btn-start {
+  width: 100%;
+  font-size: 17px; font-weight: 900; letter-spacing: .22em;
+  padding: 14px 20px;
+  text-shadow: 0 1px 0 rgba(255,255,255,.25);
+  transition: transform .12s ease, box-shadow .15s ease, filter .15s ease;
+}
+.btn-start:hover:not(:disabled) {
+  transform: scale(1.045) translateY(-1px);
+}
+/* ---- 次要按钮：深色半透明细边框，悬停亮起 ---- */
+
+/* ---- 操作提示沉底：更小、更暗 ---- */
+.title-panel .keys { margin-top: 20px; gap: 6px 14px; }
+
+/* ---- 版本 + 种子：屏幕右下角极暗位 ---- */
+.title-meta {
+  position: fixed; right: 14px; bottom: 10px;
+  font-size: 11px; letter-spacing: .5px;
+  color: var(--text-dim); opacity: .32;
+  pointer-events: none;
+}

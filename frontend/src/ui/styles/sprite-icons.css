@@ -1,0 +1,10 @@
+/* SpriteIcon 贴图覆盖字形；没有贴图时保持字形回落。 */
+.sprite-img {
+  user-select: none;
+  -webkit-user-drag: none;
+}
+/* 字形被隐藏后，容器仍保持原来的尺寸与背景色，布局不会跳动 */
+.has-sprite .w-glyph,
+.has-sprite .glyph { visibility: hidden; }
+/* HUD 武器格里的贴图稍微收紧一点，40px 的格子留白太多会显小 */
+.hud-weapon.has-sprite .sprite-img { inset: 2px; width: calc(100% - 4px); height: calc(100% - 4px); }

@@ -1,0 +1,56 @@
+/* -------- 武器栏（商店内） -------- */
+.weapon-tray { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 16px; }
+.weapon-slot {
+  width: 58px; height: 58px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; font-size: 22px;
+}
+.weapon-slot .slot-name {
+  position: absolute; bottom: -17px; left: 0; right: 0;
+  text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.weapon-tray { margin-bottom: 26px; }
+.weapon-slot .w-tag {
+  position: absolute; right: 3px; bottom: 3px;
+  font-size: 9px; font-weight: 800; color: var(--gold);
+}
+
+/* 武器品质颜色由--tier-color注入，保持四档边框身份。 */
+.weapon-slot.tier-1 { border-color: var(--tier-color); box-shadow: 0 0 7px -1px var(--tier-color); }
+.weapon-slot.tier-2 { border-color: var(--tier-color); box-shadow: 0 0 11px -1px var(--tier-color); }
+.weapon-slot.tier-3 { border-color: var(--tier-color); box-shadow: 0 0 15px 0 var(--tier-color); }
+.weapon-slot.tier-4 {
+  border-color: var(--tier-color); border-width: 2px;
+  box-shadow: 0 0 20px 1px var(--tier-color);
+}
+/* 品质名显示在格子底部（悬停看出售价时会盖住，所以压低层级） */
+.weapon-slot .slot-tier {
+  position: absolute; top: 2px; left: 0; right: 0;
+  text-align: center; font-weight: 800; opacity: .9;
+}
+.weapon-slot.filled:hover .slot-tier { opacity: 0; }
+
+/* -------- 武器出售 -------- */
+.weapon-slot.filled { cursor: pointer; transition: transform .12s, border-color .12s; }
+.weapon-slot.filled:hover { transform: translateY(-2px); }
+.weapon-slot .slot-sell {
+  position: absolute; left: 0; right: 0; bottom: 0; font-weight: 700; text-align: center;
+  padding: 2px 0; color: #fff;
+  background: rgba(255,95,109,.85);
+  opacity: 0; transition: opacity .12s;
+  border-radius: 0 0 9px 9px;
+}
+.weapon-slot.filled:hover .slot-sell { opacity: 1; }
+.sell-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: -14px 0 22px; padding: 10px 14px;
+  border: 1px solid var(--red); border-radius: 10px;
+  background: rgba(255,95,109,.10);
+  font-size: 13px;
+}
+.sell-bar .btn.danger {
+  border-color: var(--red); color: #ffd7da;
+  background: rgba(255,95,109,.22);
+}
+.sell-bar .btn.danger:hover { background: rgba(255,95,109,.38); }

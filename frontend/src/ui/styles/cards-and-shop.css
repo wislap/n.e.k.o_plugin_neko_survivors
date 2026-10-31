@@ -1,0 +1,300 @@
+/* 升级卡片的稀有度角标（用户要求：升级分 4 档稀有度，效果 ×1/×2/×3/×4） */
+.card-rarity {
+  display: inline-block;
+  margin: 6px 0 2px;
+  padding: 2px 9px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+.card--rare { border-width: 2px; }
+
+/* 难度选择。 */
+.diff-block {
+  margin: 16px 0 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .02);
+}
+.diff-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: .1em;
+  margin-bottom: 10px;
+}
+.diff-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.diff-btn {
+  flex: 1 1 0;
+  min-width: 76px;
+  padding: 9px 6px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all .16s;
+}
+.diff-btn:hover { background: rgba(255, 255, 255, .07); color: var(--text); }
+.diff-btn.active { background: rgba(255, 255, 255, .09); }
+.diff-desc {
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  min-height: 2.4em;
+}
+
+/* 商店角色栏、商品栏与属性面板。 */
+/* 商店直接设置width扩展可用宽度；max-width只能限制宽度，无法放宽基础screen。 */
+.shop-screen { width: min(1440px, 100%); }
+.shop-body {
+  display: grid;
+
+  grid-template-columns: 120px minmax(0, 1fr) 268px;
+  gap: 20px;
+  align-items: start;
+  margin-top: 14px;
+}
+.shop-main { min-width: 0; }
+
+/* 角色栏通过data-tip展示能力与技能。 */
+.shop-char {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  cursor: help;
+}
+.shop-char:hover { border-color: var(--pink); }
+.shop-char .shop-char-avatar {
+  width: 84px;
+  height: 84px;
+  font-size: 38px;
+  border-width: 2px;
+  border-style: solid;
+  border-radius: 12px;
+}
+.shop-char-name { font-size: 13px; font-weight: 600; }
+.shop-char .hint { font-size: 10px; text-align: center; }
+
+/* 商品固定四列，避免auto-fill产生三列或五列。 */
+.shop-screen .char-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* 窄屏商品退回两列，保持卡片可读宽度。 */
+@media (max-width: 1280px) {
+  .shop-screen .char-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.sec-label {
+  font-size: 12px;
+  margin: 6px 0 8px;
+}
+
+/* ---- 常驻数值面板 ---- */
+.stat-panel {
+  position: sticky;
+  top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  font-size: 12.5px;
+}
+.sp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 9px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.sp-name { font-size: 15px; font-weight: 700; color: var(--pink); }
+.sp-lv { font-size: 12px; color: var(--cyan); font-weight: 700; }
+
+.sp-hp { margin-bottom: 12px; }
+.sp-hp-bar {
+  height: 7px;
+  overflow: hidden;
+}
+.sp-hp-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--red), #ff9f68);
+  transition: width .2s;
+}
+.sp-hp-text {
+  margin-top: 5px;
+  font-size: 11.5px;
+  text-align: right;
+}
+
+.sp-sec { margin-bottom: 12px; }
+.sp-title {
+  letter-spacing: .12em;
+  color: var(--cyan);
+  margin-bottom: 5px;
+  opacity: .85;
+}
+.sp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 2.5px 0;
+  line-height: 1.4;
+}
+/* 数值与问号徽标整体靠右，不能依赖最后子元素选择器。 */
+.sp-v { font-variant-numeric: tabular-nums; margin-left: auto; }
+.sp-total { border-top: 1px dashed var(--line); margin-top: 5px; padding-top: 5px; }
+.sp-total .sp-v { color: var(--gold); }
+
+/* 提示层挂在body并跟随鼠标，避免被属性面板的overflow裁剪。 */
+.sp-row.has-tip { cursor: help; }
+.sp-row.has-tip:hover { color: var(--pink); }
+.sp-info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; margin-left: 5px; flex: none;
+  border-radius: 50%; font-weight: 800;
+  border: 1px solid var(--line); color: var(--text-dim);
+  opacity: .5;
+}
+.sp-row.has-tip:hover .sp-info { opacity: 1; border-color: var(--pink); color: var(--pink); }
+
+/* 武器格子：可悬浮看详细数据 */
+.weapon-slot.filled[data-tip] { cursor: pointer; }
+
+/* 浮动提示本体（JS 定位，挂 body 上） */
+.tip-float {
+  position: fixed;
+  left: 0; top: 0;
+  max-width: 290px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 11.5px; font-weight: 400; line-height: 1.6;
+  text-align: left;
+  white-space: pre-line;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0; visibility: hidden;
+  transition: opacity .1s ease;
+}
+.tip-float.show { opacity: 1; visibility: visible; }
+
+/* ---- 商品卡上的锁定标记 ---- */
+.card { position: relative; }
+.card.locked { border-color: var(--gold) !important; box-shadow: 0 0 0 1px rgba(255, 200, 87, .35) inset; }
+.lock-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 10.5px;
+  padding: 3px 7px;
+  border-radius: 99px;
+  background: rgba(255, 200, 87, .16);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* 免费道具的猫爪印记放在左下角，避开品质与锁定徽标。 */
+.paw-mark {
+  position: absolute;
+  left: 8px;
+  bottom: 10px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  /* 粉色底 + 白爪，和"小小猫娘"的配色一致（她的主题色是 #ff7bac） */
+  background: radial-gradient(circle at 35% 30%, #ffa6cd, #ff5fa2 70%);
+  box-shadow: 0 2px 6px rgba(255, 95, 162, .45), 0 0 0 2px rgba(255, 255, 255, .7) inset;
+  color: #fff;
+  pointer-events: none;   /* 不挡住下面的按钮点击 */
+  /* 轻轻歪一点，看起来像"啪"地盖上去的印章，而不是排版的方块 */
+  transform: rotate(-14deg);
+  z-index: 3;
+}
+.paw-mark svg { display: block; fill: currentColor; }
+
+/* 售出卡片只淡化爪印之外的子元素；父级opacity会连爪印一起变淡，子元素无法抵消。 */
+.card.sold { opacity: 1; }
+.card.sold > :not(.paw-mark) { opacity: .3; }
+
+.card.sold .paw-mark {
+  box-shadow: 0 2px 8px rgba(255, 95, 162, .7), 0 0 0 2px rgba(255, 255, 255, .85) inset;
+  filter: saturate(1.15) brightness(1.05);
+}
+
+/* 角色描述和技能不滚动，卡片随内容撑高。 */
+.char-skill-box {
+  margin-top: 10px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .035);
+  border: 1px solid rgba(255, 255, 255, .09);
+}
+
+.skill-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* 第二个 skill-row（技能那一行）上方留出和上一段文案的间距 */
+  margin-top: 6px;
+}
+.skill-row:first-child { margin-top: 0; }
+
+.skill-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: .5px;
+  flex: none;
+}
+/* 能力 = 常驻被动，用中性青；技能 = 有名字的机制，用金 */
+
+.skill-name {
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.skill-text {
+  font-size: 10px;
+  line-height: 1.42;
+  margin-top: 3px;
+}
+
+/* 窄屏：面板移到下方 */
+@media (max-width: 980px) {
+  .shop-body { grid-template-columns: minmax(0, 1fr); }
+  .stat-panel { position: static; max-height: none; }
+  /* 窄屏角色栏横排。 */
+  .shop-char { flex-direction: row; justify-content: flex-start; }
+  .shop-char .shop-char-avatar { width: 56px; height: 56px; font-size: 26px; }
+}
+
+/* HUD难度徽标。 */
+.hud-difficulty {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 9px;
+  border: 1px solid currentColor;
+  vertical-align: middle;
+  letter-spacing: .08em;
+  animation: badgePulse 1.9s ease-in-out infinite;
+}
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 0 5px rgba(255,80,60,.25), inset 0 0 4px rgba(255,120,80,.18); }
+  50%      { box-shadow: 0 0 14px rgba(255,80,60,.55), inset 0 0 6px rgba(255,120,80,.30); }
+}

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>公开 Runtime 生命周期验收</title>
+  <style>
+    body { margin: 20px; color: #edf1f8; background: #151923; font: 15px/1.5 system-ui, sans-serif; }
+    button { padding: 9px 16px; margin: 0 10px 10px 0; font: inherit; }
+    select, input { font: inherit; margin: 0 12px 12px 0; }
+    #mount { width: min(960px, 96vw); height: 540px; border: 1px solid #64748b; }
+    pre { padding: 12px; background: #0b1018; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .warning { color: #ffd58c; }
+  </style>
+</head>
+<body>
+  <h1>公开 Runtime 生命周期验收</h1>
+  <p class="warning">仅在全新、独立 origin 运行。本页不读写已有用户配置；公开 runtime 自身会使用当前 origin 的存储，请勿在用户正在使用的 origin 运行。</p>
+  <p>Vite 源构建夹具；不代表完整生产包或物理隐藏验收。仅使用严格 WebGL2；独立模式，不接 SDK 或 LLM。</p>
+  <p>每轮公开创建 → 合法 2P/normal/yui/seed69 开局 → 实际至少 60 个显示帧 → dispose。只观察 context 状态，不强制 GC 或额外销毁 GPU context。</p>
+  <p>可选后期模式会在本独立 QA origin 用公开存档仓库导入原样自然进度，再公开继续游戏；不改快照字段、不改世界或跳波。轻量模式不由夹具导入存储。</p>
+  <label>场景 <select id="scenario"><option value="light">轻量：2P 普通开局</option><option value="normal4">自然快照：4P 普通 shop18</option><option value="nightmare4">自然快照：4P 噩梦 shop18</option></select></label>
+  <label>每轮最少真实显示帧 <input id="frames" type="number" min="60" max="6000" value="60"></label>
+  <p>后期模式同时要求真实生成纹理缓存非零；显示阶段总等待上限 15 秒（不含初始化）；销毁后两个 RAF 共用 1.5 秒上限，超时均为 NOT_VERIFIED。类型数量按实际缓存报告，不承诺 12 类齐全。</p>
+  <button id="one">运行 1 轮</button><button id="five">连续运行 5 轮</button>
+  <div id="mount"></div><div id="avatar-slot" aria-label="独立模式头像观察槽"></div>
+  <h2>当前状态</h2><pre id="status"></pre>
+  <h2>逐轮结果</h2><pre id="results"></pre>
+  <h2>全局未处理异常（只观察）</h2><pre id="errors"></pre>
+  <script type="module">
+    import { createRuntime } from '../../src/app/runtime.ts';
+    import { browserStorage, createSaveRepository } from '../../src/storage/index.ts';
+    import { isGameSave, isGameMeta } from '../../src/game/index.ts';
+
+    const mount = document.getElementById('mount');
+    const avatarSlot = document.getElementById('avatar-slot');
+    const status = document.getElementById('status');
+    const results = document.getElementById('results');
+    const errors = document.getElementById('errors');
+    const buttons = [document.getElementById('one'), document.getElementById('five')];
+    const scenarioSelect = document.getElementById('scenario'), framesInput = document.getElementById('frames');
+    const naturalFixtures = { normal4: 'normal-4p-seed69-wave18.json', nightmare4: 'nightmare-4p-seed69-wave18.json' };
+    const reports = [], globalErrors = [];
+    const nativeRequest = window.requestAnimationFrame, nativeCancel = window.cancelAnimationFrame;
+    const nativeSetTimeout = window.setTimeout, nativeClearTimeout = window.clearTimeout;
+    let busy = false, activeRuntime = null, activeController = null, activeObserver = null;
+    let pageRetired = false;
+    function nextFrame(deadline, phase) {
+      return new Promise((resolve, reject) => {
+        let frameId, timerId, settled = false;
+        const timeout = () => {
+          if (settled) return;
+          settled = true;
+          if (frameId !== undefined) nativeCancel.call(window, frameId);
+          if (timerId !== undefined) nativeClearTimeout.call(window, timerId);
+          reject(new Error(`NOT_VERIFIED: ${phase} native deadline elapsed; initialization is outside the display deadline.`));
+        };
+        const remaining = deadline - performance.now();
+        if (remaining <= 0) { timeout(); return; }
+        timerId = nativeSetTimeout.call(window, timeout, remaining);
+        try {
+          frameId = nativeRequest.call(window, timestamp => {
+            if (settled) return;
+            if (performance.now() >= deadline) { timeout(); return; }
+            settled = true; nativeClearTimeout.call(window, timerId); resolve(timestamp);
+          });
+        } catch (error) {
+          settled = true; nativeClearTimeout.call(window, timerId); reject(error);
+        }
+      });
+    }
+    function show(value) { status.textContent = JSON.stringify(value, null, 2); results.textContent = JSON.stringify(reports, null, 2); }
+    function reason(error) { return { name: error?.name ?? 'UnknownError', message: error?.message ?? String(error), stack: error?.stack ?? null }; }
+
+    function installObservers() {
+      const callbackIndex = new WeakMap();
+      const listeners = new Map(), rafs = new Map(), timers = new Map();
+      const restores = [];
+      let nextListener = 0, inAppRaf = 0, inAppTimer = 0, restored = false;
+      const counts = { rafRequested: 0, rafExecuted: 0, rafCancelled: 0, excludedOnce: 0, unreadableOptions: 0, timerRequested: 0, timerExecuted: 0, timerCancelled: 0, unobservedStringTimers: 0 };
+      function appSource() {
+        return (new Error().stack || '').split('\n').find(line => line.includes('/src/') && !line.includes('/tests/e2e/runtime-lifecycle-fixture.html'))?.trim() ?? null;
+      }
+      function optionsInfo(options) {
+        if (typeof options === 'boolean') return { capture: options, once: false, signal: undefined };
+        const read = key => {
+          for (let value = options; value && typeof value === 'object'; value = Object.getPrototypeOf(value)) {
+            const descriptor = Object.getOwnPropertyDescriptor(value, key);
+            if (descriptor) {
+              if (!('value' in descriptor)) throw new Error('Accessor event options are not observed');
+              return descriptor.value;
+            }
+          }
+          return undefined;
+        };
+        return { capture: !!read('capture'), once: !!read('once'), signal: read('signal') };
+      }
+      function forget(id) {
+        const record = listeners.get(id);
+        if (!record) return;
+        listeners.delete(id);
+        const signal = record.signalRef?.deref();
+        if (signal) signal.removeEventListener('abort', record.onAbort);
+      }
+      function replace(target, name, wrapper) {
+        const descriptor = Object.getOwnPropertyDescriptor(target, name);
+        Object.defineProperty(target, name, { configurable: true, writable: true, value: wrapper });
+        restores.push(() => { if (descriptor) Object.defineProperty(target, name, descriptor); else delete target[name]; });
+      }
+      for (const [target, targetName] of [[window, 'window'], [document, 'document']]) {
+        const add = target.addEventListener, remove = target.removeEventListener;
+        replace(target, 'addEventListener', function(...args) {
+          // Native validation and original arguments/return value take precedence.
+          const result = Reflect.apply(add, this, args);
+          const [type, callback, options] = args;
+          if (this !== target || !callback || !['function', 'object'].includes(typeof callback)) return result;
+          let info;
+          try { info = optionsInfo(options); } catch { counts.unreadableOptions++; return result; }
+          const key = `${targetName}|${info.capture ? 1 : 0}|${type}`;
+          let index = callbackIndex.get(callback);
+          if (index && listeners.has(index.get(key))) return result;
+          const source = appSource();
+          if (!source) return result;
+          if (info.once) { counts.excludedOnce++; return result; }
+          if (info.signal?.aborted) return result;
+          if (!index) { index = new Map(); callbackIndex.set(callback, index); }
+          const id = ++nextListener;
+          const record = { id, target: targetName, type: String(type), capture: info.capture, source };
+          if (info.signal) {
+            record.signalRef = new WeakRef(info.signal);
+            record.onAbort = () => forget(id);
+            info.signal.addEventListener('abort', record.onAbort, { once: true });
+          }
+          index.set(key, id); listeners.set(id, record);
+          return result;
+        });
+        replace(target, 'removeEventListener', function(...args) {
+          const result = Reflect.apply(remove, this, args);
+          const [type, callback, options] = args;
+          if (this !== target || !callback || !['function', 'object'].includes(typeof callback)) return result;
+          let capture;
+          try { capture = optionsInfo(options).capture; } catch { counts.unreadableOptions++; return result; }
+          const index = callbackIndex.get(callback), key = `${targetName}|${capture ? 1 : 0}|${type}`;
+          if (index) { forget(index.get(key)); index.delete(key); }
+          return result;
+        });
+      }
+      const request = window.requestAnimationFrame, cancel = window.cancelAnimationFrame;
+      replace(window, 'requestAnimationFrame', function(...args) {
+        const callback = args[0];
+        if (typeof callback !== 'function') return Reflect.apply(request, this, args);
+        const source = appSource() || (inAppRaf || inAppTimer ? 'inherited application callback owner' : null);
+        if (!source) return Reflect.apply(request, this, args);
+        let id;
+        const wrapped = function(...callbackArgs) {
+          rafs.delete(id); counts.rafExecuted++;
+          inAppRaf++;
+          try { return Reflect.apply(callback, this, callbackArgs); }
+          finally { inAppRaf--; }
+        };
+        id = Reflect.apply(request, this, [wrapped, ...args.slice(1)]);
+        rafs.set(id, { id, source }); counts.rafRequested++;
+        return id;
+      });
+      replace(window, 'cancelAnimationFrame', function(...args) {
+        const result = Reflect.apply(cancel, this, args);
+        if (rafs.delete(args[0])) counts.rafCancelled++;
+        return result;
+      });
+      // Browser timeouts/intervals share an ID pool and either clear API may cancel either kind.
+      for (const [method, kind] of [['setTimeout', 'timeout'], ['setInterval', 'interval']]) {
+        const schedule = window[method];
+        replace(window, method, function(...args) {
+          const callback = args[0], source = appSource() || (inAppRaf || inAppTimer ? 'inherited application callback owner' : null);
+          if (!source || typeof callback !== 'function') {
+            if (source) counts.unobservedStringTimers++;
+            return Reflect.apply(schedule, this, args);
+          }
+          let id;
+          const wrapped = function(...callbackArgs) {
+            if (kind === 'timeout') timers.delete(id);
+            counts.timerExecuted++; inAppTimer++;
+            try { return Reflect.apply(callback, this, callbackArgs); }
+            finally { inAppTimer--; }
+          };
+          id = Reflect.apply(schedule, this, [wrapped, ...args.slice(1)]);
+          timers.set(id, { id, kind, source, delayMs: typeof args[1] === 'number' ? args[1] : null }); counts.timerRequested++;
+          return id;
+        });
+      }
+      for (const method of ['clearTimeout', 'clearInterval']) {
+        const clear = window[method];
+        replace(window, method, function(...args) {
+          const result = Reflect.apply(clear, this, args);
+          if (timers.delete(args[0])) counts.timerCancelled++;
+          return result;
+        });
+      }
+      return {
+        snapshot() { return { permanentWindowDocumentListeners: listeners.size,
+          listeners: [...listeners.values()].map(({ id, target, type, capture, source }) => ({ id, target, type, capture, source })),
+          pendingApplicationRaf: rafs.size, rafs: [...rafs.values()],
+          pendingApplicationTimers: timers.size, timers: [...timers.values()], ...counts,
+          scope: 'Application-origin permanent window/document listeners only; once listeners excluded. Callback keys are weak; records contain no application callbacks. Accessor options/string timers are reported unmeasured. Timers are observed only when actually scheduled by application code; standalone AvatarWatcher does not poll.' }; },
+        restore() {
+          if (restored) return; restored = true;
+          for (const record of listeners.values()) {
+            const signal = record.signalRef?.deref(); if (signal) signal.removeEventListener('abort', record.onAbort);
+          }
+          for (const restore of restores.reverse()) restore();
+        },
+      };
+    }
+    function contextState(canvas, backend) {
+      if (!canvas) return { backend, canvasRetained: false };
+      try {
+        const gl = canvas.getContext('webgl2');
+        return { backend, canvasRetained: true, webgl2Available: !!gl, isContextLost: gl ? gl.isContextLost() : null,
+          limitation: gl ? 'Read-only native context state; no extra loseContext call.' : 'WebGL2 context was not initialized.' };
+      } catch (error) { return { backend, canvasRetained: true, error: reason(error) }; }
+    }
+    function snapshot(runtime, canvas) {
+      const diagnostics = runtime.diagnostics;
+      return { diagnostics, frameCounter: diagnostics.performance?.frames ?? null,
+        canvasCount: document.querySelectorAll('canvas').length, mountCanvasCount: mount.querySelectorAll('canvas').length,
+        context: contextState(canvas, diagnostics.backend), observer: activeObserver.snapshot() };
+    }
+    async function loadNaturalFixture(scenario) {
+      const filename = naturalFixtures[scenario];
+      if (!filename) return null;
+      const response = await fetch(`/test-results/performance-fixtures/${filename}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Natural fixture unavailable: HTTP ${response.status}`);
+      const fixture = await response.json();
+      if (fixture.kind !== 'neko-survivors-react-natural-profile' || fixture.version !== 1 || !isGameSave(fixture.save) || !isGameMeta(fixture.meta)
+        || fixture.metadata?.partySize !== 4 || fixture.metadata?.targetWave !== 18 || fixture.metadata?.phase !== 'shop'
+        || fixture.metadata?.seed !== 69 || fixture.metadata?.difficulty !== (scenario === 'normal4' ? 'normal' : 'nightmare')) {
+        throw new Error('Natural fixture rejected by production save/meta validation or declared QA identity');
+      }
+      return fixture;
+    }
+    async function round(number, scenario, requiredFrames, fixture) {
+      const report = { round: number, scenario, requiredDisplayFrames: requiredFrames, requireGeneratedTextures: !!fixture,
+        fixtureMetadata: fixture?.metadata ?? null, displayWaitLimitMs: 15_000, cleanupRafWaitLimitMs: 1500, startedAtMs: performance.now() }; reports.push(report);
+      let runtime, canvas;
+      const controller = new AbortController(); activeController = controller;
+      try {
+        if (fixture) {
+          // Use the actual repository and unchanged production export, on this QA-only origin.
+          const saved = createSaveRepository(browserStorage()).writeProgress({ run: fixture.save, meta: fixture.meta });
+          if (!saved.ok) throw new Error(`QA natural save import failed: ${saved.reason}`);
+          report.qaSaveImport = 'Original validated save/meta via public repository.writeProgress; no StoragePort override.';
+        }
+        runtime = await createRuntime(mount, { profile: true, signal: controller.signal,
+          location: { origin: window.location.origin, pathname: '/runtime-lifecycle-qa/' } });
+        activeRuntime = runtime;
+        report.avatar = { publicWatcherStarted: true, visibility: [], timers: 'Observed native App timer calls; standalone AvatarWatcher intentionally schedules no polling timer.' };
+        runtime.watchAvatar(avatarSlot, visible => { report.avatar.visibility.push(visible); });
+        const options = { characterId: 'yui', difficulty: 'normal', partySize: 2, seed: 69 };
+        if (fixture) {
+          await runtime.continueRun();
+          const loaded = runtime.getSnapshot().game;
+          report.restored = { phase: loaded.phase, wave: loaded.wave, partySize: loaded.players.length };
+          if (loaded.phase !== 'shop' || loaded.wave !== 18 || loaded.players.length !== 4) throw new Error('Public continueRun did not restore the declared natural shop18/4P checkpoint');
+        } else await runtime.dispatch({ type: 'start-run', options });
+        canvas = mount.querySelector('canvas');
+        report.hostMode = runtime.diagnostics.hostMode; report.startOptions = fixture ? 'Public continueRun using original natural checkpoint' : options;
+        const initialFrames = runtime.diagnostics.performance?.frames ?? 0;
+        report.initialFrameCounter = initialFrames;
+        const displayDeadline = performance.now() + report.displayWaitLimitMs;
+        while (!pageRetired) {
+          await nextFrame(displayDeadline, 'display wait');
+          const diagnostics = runtime.diagnostics, frames = diagnostics.performance?.frames ?? 0;
+          show({ busy, round: number, scenario, actualDisplayFrames: frames - initialFrames, requiredFrames, generatedTextures: diagnostics.generatedTextures, observer: activeObserver.snapshot() });
+          if (frames - initialFrames >= requiredFrames && (!fixture || diagnostics.generatedTextures.cached > 0)) break;
+        }
+        if (pageRetired) throw new Error('Page retired during lifecycle run');
+        report.active = snapshot(runtime, canvas);
+        report.actualDisplayFrames = report.active.frameCounter - initialFrames;
+      } catch (error) { report.error = reason(error); }
+      finally {
+        if (runtime) {
+          runtime.dispose(); controller.abort(); activeRuntime = null;
+          report.afterImmediate = snapshot(runtime, canvas);
+          // Context loss is asynchronous in some drivers; observe, do not force it.
+          if (!pageRetired) {
+            const cleanupDeadline = performance.now() + report.cleanupRafWaitLimitMs;
+            try { await nextFrame(cleanupDeadline, 'cleanup RAF wait'); await nextFrame(cleanupDeadline, 'cleanup RAF wait'); }
+            catch (error) { report.cleanupWaitError = reason(error); report.error ??= report.cleanupWaitError; }
+          }
+          report.after = snapshot(runtime, canvas);
+        }
+        activeController = null;
+      }
+      report.elapsedMs = performance.now() - report.startedAtMs;
+      const after = report.after;
+      report.passedObservedChecks = !!after && !report.error && report.hostMode === 'standalone'
+        && report.actualDisplayFrames >= requiredFrames && (!fixture || report.active.diagnostics.generatedTextures.cached > 0) && after.diagnostics.disposed && after.canvasCount === 0 && after.mountCanvasCount === 0
+        && after.diagnostics.assets.loaded === 0 && after.diagnostics.assets.pending === 0
+        && after.diagnostics.generatedTextures.cached === 0 && after.diagnostics.generatedTextures.generated === after.diagnostics.generatedTextures.released
+        && Object.values(after.diagnostics.objects).every(value => value === 0)
+        && after.observer.permanentWindowDocumentListeners === 0 && after.observer.pendingApplicationRaf === 0 && after.observer.pendingApplicationTimers === 0;
+      report.gl2ContextReleased = after?.diagnostics.backend === 'webgl2' ? after.context.isContextLost === true : null;
+      report.status = report.error ? 'NOT_VERIFIED' : !report.passedObservedChecks ? 'FAILED_OBSERVED_CHECKS'
+        : report.gl2ContextReleased === false ? 'CONTEXT_RELEASE_NOT_CONFIRMED' : 'OBSERVED_CHECKS_PASSED';
+      show({ busy, completedRound: number, status: report.status, passedObservedChecks: report.passedObservedChecks, gl2ContextReleased: report.gl2ContextReleased });
+      return !report.error;
+    }
+    async function run(count) {
+      if (busy || pageRetired) return;
+      busy = true; buttons.forEach(button => { button.disabled = true; });
+      scenarioSelect.disabled = true; framesInput.disabled = true;
+      activeObserver = installObservers();
+      try {
+        const scenario = scenarioSelect.value, requiredFrames = Number(framesInput.value);
+        if (!Number.isInteger(requiredFrames) || requiredFrames < 60 || requiredFrames > 6000) throw new Error('Required display frames must be an integer from 60 to 6000');
+        const fixture = await loadNaturalFixture(scenario);
+        for (let number = 1; number <= count && !pageRetired; number++) if (!await round(reports.length + 1, scenario, requiredFrames, fixture)) break;
+      } catch (error) { globalErrors.push({ type: 'fixture-error', ...reason(error) }); errors.textContent = JSON.stringify(globalErrors, null, 2); }
+      finally {
+        activeController?.abort(); activeRuntime?.dispose(); activeRuntime = null;
+        const finalObserver = activeObserver.snapshot(); activeObserver.restore(); activeObserver = null;
+        busy = false; buttons.forEach(button => { button.disabled = false; }); scenarioSelect.disabled = false; framesInput.disabled = false;
+        show({ busy, apiRestored: true, finalObserver });
+      }
+    }
+    function launch(count) {
+      void run(count).catch(error => {
+        globalErrors.push({ type: 'fixture-run-rejection', ...reason(error) });
+        errors.textContent = JSON.stringify(globalErrors, null, 2);
+      });
+    }
+    document.getElementById('one').addEventListener('click', () => launch(1));
+    document.getElementById('five').addEventListener('click', () => launch(5));
+    window.addEventListener('unhandledrejection', event => {
+      globalErrors.push({ type: 'unhandledrejection', ...reason(event.reason) }); errors.textContent = JSON.stringify(globalErrors, null, 2);
+    });
+    window.addEventListener('pagehide', () => {
+      pageRetired = true; activeController?.abort(); activeRuntime?.dispose(); activeRuntime = null;
+      activeObserver?.restore();
+    });
+    show({ ready: true, sourceFixture: true, origin: location.origin,
+      scripts: Array.from(document.scripts, script => script.src || '[inline module]'), nativeContextDestroy: 'Pixi GlContextSystem.destroy uses gl.useProgram(null), then WEBGL_lose_context when available.' });
+  </script>
+</body>
+</html>

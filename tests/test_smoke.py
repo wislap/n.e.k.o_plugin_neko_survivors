@@ -1,35 +1,28 @@
 from pathlib import Path
+import json
+import tomllib
+
+ROOT = Path(__file__).resolve().parents[1]
+
+def test_independent_manifest_identity():
+    manifest = tomllib.loads((ROOT / 'plugin.toml').read_text())
+    assert manifest['plugin']['id'] == 'neko_survivors_react'
+    assert manifest['plugin']['entry'] == 'neko_survivors_react_entry:SurvivorsReactPlugin'
+    assert manifest['plugin']['ui']['panel'][0]['mode'] == 'static'
+    assert (ROOT / 'vendor/neko_survivors_react_entry/__init__.py').is_file()
+    assert (ROOT / 'neko_survivors_react_entry.py').is_file()
 
 
-def test_plugin_manifest_exists() -> None:
-    root = Path(__file__).resolve().parents[1]
-    manifest = root / "plugin.toml"
-    assert manifest.is_file()
-    text = manifest.read_text(encoding="utf-8")
-    assert 'id = "neko_survivors"' in text
-    assert 'entry = "plugin.plugins.neko_survivors:SurvivorsPlugin"' in text
-
-
-def test_game_runtime_bundled() -> None:
-    root = Path(__file__).resolve().parents[1]
-    game = root / "static" / "game"
-    index = game / "index.html"
-    main = game / "src" / "main.js"
-    assert index.is_file(), "static/game/index.html 缺失"
-    assert main.is_file(), "static/game/src/main.js 缺失"
-    html = index.read_text(encoding="utf-8")
-    assert "src/main.js" in html
-    assert (game / "assets").is_dir()
-
-
-def test_no_spoiler_in_listing() -> None:
-    """上架文案不得剧透隐藏 Boss 的名字（用户要求）。"""
-    # 字面量拼接，避免测试文件自身包含这个名字
-    name = "\u8299\u5170"
-    english = "Flan" + "dre"
-    root = Path(__file__).resolve().parents[1]
-    for rel in ("plugin.toml", "README.md", "i18n/zh-CN.json", "i18n/en.json",
-                "static/index.html"):
-        text = (root / rel).read_text(encoding="utf-8")
-        assert name not in text, f"{rel} 泄露了隐藏 Boss 的名字"
-        assert english not in text, f"{rel} 泄露了隐藏 Boss 的英文名"
+def test_no_spoiler_in_listing():
+    for name in ('plugin.toml', 'README.md'):
+        text = (ROOT / name).read_text()
+        assert '\u8299\u5170' not in text
+        assert 'Flan' + 'dre' not in text
+    # Runtime translations include unlocked challenges; only the public listing
+    # fields must avoid revealing their names before the player discovers them.
+    for name in ('i18n/zh-CN.json', 'i18n/en.json'):
+        messages = json.loads((ROOT / name).read_text())
+        for key in ('plugin.name', 'plugin.description'):
+            text = messages.get(key, '')
+            assert '\u8299\u5170' not in text
+            assert 'Flan' + 'dre' not in text

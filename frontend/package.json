@@ -1,0 +1,40 @@
+{
+  "name": "neko-survivors-react-frontend",
+  "version": "0.4.18",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "check:imports": "node scripts/check-imports.mjs",
+    "metrics:source": "node scripts/source-metrics.mjs",
+    "test": "npm run test:game && vitest run",
+    "test:game": "node --test tests/game/*.test.mjs",
+    "test:watch": "vitest",
+    "build": "npm run typecheck && npm run check:imports && node scripts/prepare-output.ts && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "build:profile": "npm run typecheck && npm run check:imports && vite build --sourcemap --outDir ./test-results/profile-build --emptyOutDir",
+    "benchmark:mixed": "node scripts/performance/mixed-quick.mjs",
+    "profile:report": "node scripts/performance/report.mjs",
+    "benchmark:threads": "node scripts/performance/thread-isolation.mjs",
+    "test:worker-campaign": "node tests/simulation/campaign-differential.mjs"
+  },
+  "dependencies": {
+    "pixi.js": "8.22.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@jridgewell/trace-mapping": "0.3.31",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}

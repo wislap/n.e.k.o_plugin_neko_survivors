@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>离线生成原版台风固定纹理</title>
+<p>仅离线执行固定参考 Canvas2D 指令；游戏只读取导出 PNG。</p>
+<pre id="status">generating</pre>
+<script>
+'use strict';
+const TAU = Math.PI * 2;
+const makeCanvas = () => document.createElement('canvas');
+function mk(w, h) {
+  const c = makeCanvas();
+  c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h));
+  return c;
+}
+function hash(i, s = 0) {
+  const x = Math.sin(i * 127.1 + s * 311.7) * 43758.5453123;
+  return x - Math.floor(x);
+}
+function radial(size, stops) {
+  const c = mk(size, size), g = c.getContext('2d');
+  const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  for (const [p, col] of stops) gr.addColorStop(p, col);
+  g.fillStyle = gr; g.fillRect(0, 0, size, size);
+  return c;
+}
+
+let TY = null;
+function ensureTy() {
+  if (TY) return TY;
+  const soft = (size, stops) => radial(size, stops);
+  // 螺旋臂：沿对数螺旋盖一串软边圆章，宽度中段最大、两头收尖，透明度由根部到梢部渐隐
+  const arm = (seed, sweep, turns) => {
+    const N = 256, c = mk(N, N), g = c.getContext('2d');
+    const stamp = soft(32, [[0, 'rgba(255,255,255,0.9)'], [0.5, 'rgba(255,255,255,0.35)'], [1, 'rgba(255,255,255,0)']]);
+    const K = 70;
+    for (let k = 0; k < K; k++) {
+      const u = k / (K - 1);
+      const ang = u * sweep;
+      const rr = 128 * (0.18 + 0.78 * Math.pow(u, 0.85));
+      const w = 9 + 24 * Math.sin(Math.PI * Math.min(1, u * 0.92 + 0.04)) * (0.8 + 0.2 * hash(k, seed));
+      g.globalAlpha = (0.20 + 0.55 * Math.sin(Math.PI * Math.min(1, u * 0.9 + 0.05))) * (1 - 0.35 * u);
+      g.drawImage(stamp, 128 + Math.cos(ang) * rr - w, 128 + Math.sin(ang) * rr - w, w * 2, w * 2);
+      void turns;
+    }
+    return c;
+  };
+  TY = {
+    arms: [arm(1, 1.9, 1), arm(2, 2.2, 1), arm(3, 1.6, 1)],
+    shadow: soft(128, [[0, 'rgba(14,22,40,0.55)'], [0.55, 'rgba(14,22,40,0.28)'], [1, 'rgba(14,22,40,0)']]),
+    puff: soft(64, [[0, 'rgba(235,244,252,0.8)'], [0.45, 'rgba(220,234,246,0.38)'], [1, 'rgba(210,226,242,0)']]),
+    eye: soft(128, [[0, 'rgba(6,10,20,0.85)'], [0.6, 'rgba(14,20,36,0.4)'], [1, 'rgba(14,20,36,0)']]),
+    flash: soft(96, [[0, 'rgba(255,255,255,0.9)'], [0.3, 'rgba(190,225,255,0.5)'], [1, 'rgba(160,200,255,0)']]),
+    leaf: ['#9db86a', '#c9a45a', '#8fae7c'].map((col) => {
+      const c = mk(20, 20), g = c.getContext('2d'); g.translate(10, 10);
+      g.fillStyle = col; g.beginPath(); g.moveTo(-8, 0); g.quadraticCurveTo(0, -6, 8, 0); g.quadraticCurveTo(0, 6, -8, 0); g.fill();
+      g.strokeStyle = 'rgba(255,255,255,0.45)'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(-7, 0); g.lineTo(7, 0); g.stroke();
+      return c;
+    }),
+  };
+  return TY;
+}
+
+
+const source = { referenceCommit: '5ade0bb30726dc6207e616f1560af42cb99b6fb4',
+  path: 'static/game/src/systems/weather-fx.js', sourceSha256: '7b637c7e9340edd78b098e6962114ab18b001a613c997feb011b7a85281a4874',
+  operations: 'mk/hash/radial; ensureTy original instruction order, lines 265–298; S.mist line 39',
+  outputDirectory: 'frontend/public/assets/fx/', browser: navigator.userAgent };
+const assets = [];
+(async () => {
+  const primitives = ensureTy();
+  const canvases = [
+    ...primitives.arms.map((canvas, index) => ({ name: `arm-${index}`, canvas })),
+    ...['shadow', 'puff', 'eye', 'flash'].map(name => ({ name, canvas: primitives[name] })),
+    // drawTyphoon's i%3===0 path uses puff; only leaf 1 and 2 have consumers.
+    ...primitives.leaf.flatMap((canvas, index) => index === 0 ? [] : [{ name: `leaf-${index}`, canvas }]),
+    { name: 'mist', canvas: radial(128, [[0, 'rgba(190,214,240,0.5)'], [0.6, 'rgba(170,200,230,0.18)'], [1, 'rgba(160,190,225,0)']]) },
+  ];
+  for (const { name, canvas } of canvases) {
+    const file = `typhoon-source-${name}.png`, dataUrl = canvas.toDataURL('image/png');
+    const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1)), character => character.charCodeAt(0));
+    const sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(value => value.toString(16).padStart(2, '0')).join('');
+    assets.push({ name, file, width: canvas.width, height: canvas.height, bytes: bytes.length, sha256 });
+    const download = document.createElement('a'); download.download = file; download.href = dataUrl;
+    download.textContent = file; document.body.append(download, document.createElement('br'));
+  }
+  document.querySelector('#status').textContent = JSON.stringify({ status: 'ready', source, assets }, null, 2);
+})().catch(error => { document.querySelector('#status').textContent = 'FAILED: ' + String(error); });
+</script>

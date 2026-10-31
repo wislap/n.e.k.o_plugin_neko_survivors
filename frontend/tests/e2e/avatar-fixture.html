@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Live2D 真实引擎验证夹具</title>
+<style>
+  :root { font-family: system-ui, sans-serif; color: #e6f3ff; background: #152331; }
+  body { margin: 0; padding: 24px; }
+  main { max-width: 1000px; margin: auto; }
+  h1 { font-size: 26px; }
+  .notice { padding: 14px; border: 1px solid #c49b62; background: #493b27; border-radius: 8px; }
+  .layout { display: grid; grid-template-columns: minmax(340px, 520px) 1fr; gap: 20px; margin-top: 20px; }
+  #avatar-slot { height: 580px; border: 1px solid #6d91a9; border-radius: 12px; overflow: hidden;
+    background: radial-gradient(ellipse at center, #416079, #1c2e40 70%); }
+  button { padding: 10px 16px; background: #9addf0; color: #102a39; border: 0; border-radius: 8px; cursor: pointer; margin: 6px 6px 6px 0; }
+  #status { padding: 12px; border: 1px solid #53768c; border-radius: 8px; margin: 12px 0; }
+  pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.6; }
+</style></head>
+<body><main>
+<h1>Live2D 真实引擎验证夹具</h1>
+<p class="notice">仅验证官方 mao_pro 模型、真实 Live2D/Pixi 引擎、隔离文档与挂载生命周期。此页不代表用户当前角色配置，不连接 NEKO 会话，不生成台词，不调用 TTS。</p>
+<div class="layout"><div id="avatar-slot" aria-label="官方模型验证区域"></div><section>
+<button id="mount">挂载真实模型</button><button id="dispose">销毁</button><button id="remount">销毁并重挂</button>
+<div><button id="emotion-happy">happy 开心</button><button id="emotion-sad">sad 难过</button><button id="emotion-surprised">surprised 惊讶</button></div>
+<div id="status" role="status" data-state="idle">等待手动挂载</div>
+<p>ready 后应能看见模型待机动作；销毁后 iframe 数量应为 0；重挂后应回到 1。首次挂载需加载约 9.4 MB 的本地模型。</p>
+<pre id="diagnostics"></pre><pre id="emotion"></pre><pre id="release"></pre><pre id="events"></pre>
+</section></div></main>
+<script type="module">
+import { mountPluginAvatar } from '../../src/host/avatar/plugin-avatar.ts';
+const origin = new URLSearchParams(location.search).get('fixture');
+if (!origin || new URL(origin).hostname !== '127.0.0.1') throw new Error('Use the loopback fixture URL printed by avatar_fixture_server.py');
+const slot=document.getElementById('avatar-slot'),status=document.getElementById('status'),diagnostics=document.getElementById('diagnostics'),events=document.getElementById('events');
+const counters={mounts:0,ready:0,disposed:0,confirmedDisposals:0,emotionAttempts:0,emotionsCompleted:0};let current=null,controller=null,emotionOwner=null,epoch=0;
+function record(text){events.textContent=`${new Date().toLocaleTimeString()} ${text}\n`+events.textContent;}
+function report(state,text){status.dataset.state=state;status.textContent=text;diagnostics.textContent=JSON.stringify({fixture:origin,page:location.href,...counters,iframeCount:slot.querySelectorAll('iframe').length},null,2);}
+const host={mode:'plugin',async syncAvatar(signal){
+  const response=await fetch(new URL('/manifest.json',origin),{signal});
+  if(!response.ok) return {status:'unavailable',reason:`fixture_http_${response.status}`};
+  return {status:'completed',data:await response.json()};
+}};
+async function dispose(){
+  const owner=++epoch;emotionOwner?.abort();emotionOwner=null;controller?.abort();controller=null;const old=current;current=null;
+  if(old){
+    old.dispose();report('disposing','等待引擎确认：模型、ticker、renderer 与 WebGL context 释放…');
+    const released=await old.released;counters.disposed++;if(released.confirmed)counters.confirmedDisposals++;
+    document.getElementById('release').textContent=JSON.stringify(released,null,2);record('release '+JSON.stringify(released));
+    if(owner!==epoch)return;
+    report(released.confirmed?'disposed':'unconfirmed',released.confirmed?'引擎已明确确认释放（详见诊断）':'iframe 已移除，但没有确认完整释放');
+  }else report('disposed','没有活动头像');
+}
+async function setEmotion(name){
+  emotionOwner?.abort();const operation=new AbortController();emotionOwner=operation;
+  const lease=current,owner=epoch;counters.emotionAttempts++;
+  const result=lease?await lease.setEmotion(name,operation.signal):{status:'unavailable',reason:'no_mounted_avatar'};
+  if(owner!==epoch||operation.signal.aborted||current!==lease)return result;
+  if(result.status==='completed')counters.emotionsCompleted++;
+  document.getElementById('emotion').textContent=JSON.stringify({name,...result},null,2);
+  record('emotion '+name+' '+JSON.stringify(result));report(status.dataset.state,status.textContent);
+  return result;
+}
+async function mount(){
+  await dispose();const owner=++epoch;controller=new AbortController();
+  report('loading','正在用真实引擎加载官方模型…');record('mount start');
+  const lease=mountPluginAvatar(slot,host,controller.signal);current=lease;counters.mounts++;
+  try{await lease.ready;if(owner!==epoch)return;counters.ready++;report('ready','真实模型已挂载');record('ready');}
+  catch(error){if(owner!==epoch)return;report('error',String(error));record(String(error));}
+}
+document.getElementById('mount').onclick=mount;document.getElementById('dispose').onclick=dispose;document.getElementById('remount').onclick=mount;
+for(const name of ['happy','sad','surprised'])document.getElementById('emotion-'+name).onclick=()=>setEmotion(name);
+window.addEventListener('pagehide',dispose,{once:true});
+window.avatarFixture={mount,dispose,setEmotion,counters,get state(){return status.dataset.state;},get iframeCount(){return slot.querySelectorAll('iframe').length;}};
+report('idle','等待手动挂载');
+</script></body></html>

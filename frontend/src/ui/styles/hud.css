@@ -1,0 +1,115 @@
+/* ===================== HUD ===================== */
+
+#hud {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hud-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 12px 16px;
+  gap: 12px;
+}
+
+.hud-wave {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 6px 14px;
+}
+/* "WAVE" 速度感斜体 */
+.hud-wave .hud-label {
+  font-style: italic; font-weight: 800; letter-spacing: .18em;
+}
+.hud-wave #hud-wave-num {
+  font-size: 24px; font-weight: 800;
+  text-shadow: 0 2px 0 rgba(42,8,24,.85), 0 0 14px rgba(255,123,172,.45);
+}
+.hud-label { font-size: 11px; letter-spacing: .14em; color: var(--text-dim); }
+.hud-sub { font-size: 13px; }
+
+/* 计时器绝对居中，避免左右内容宽度不同导致偏移。 */
+.hud-timer {
+  position: absolute; left: 50%;
+  transform: translateX(-50%); text-align: center;
+}
+#hud-timer-text {
+  font-variant-numeric: tabular-nums;
+}
+#hud-timer-fill {
+  height: 100%; width: 100%;
+  transform-origin: 0 50%;
+}
+/* 芙兰阶段标签与倒计时使用独立样式。 */
+#hud-timer-label { font-weight: 700; margin-bottom: 2px;
+}
+.hud-timer.flandre #hud-timer-text { color: var(--pink); }
+
+.hud-materials {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px;
+}
+.hud-materials #hud-materials {
+  font-size: 20px; font-weight: 800;
+  /* 数字"浮"出来：深色投影 + 金色微光 */
+  text-shadow:
+    0 2px 0 rgba(40,24,4,.9),
+    0 3px 8px rgba(0,0,0,.5),
+    0 0 12px rgba(255,210,58,.35);
+}
+/* 挑战材料框下移，给符卡名和挑战提示留出空间。 */
+
+.mat-icon {
+  width: 18px; height: 18px; display: inline-block;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11' fill='%23f6c343' stroke='%23936612' stroke-width='1.6'/%3E%3Ccircle cx='12' cy='12' r='8.6' fill='none' stroke='%23d9a52e' stroke-width='1'/%3E%3Cg fill='%23845a10'%3E%3Cellipse cx='12' cy='14.8' rx='4.2' ry='3.3'/%3E%3Ccircle cx='7.6' cy='9.6' r='1.8'/%3E%3Ccircle cx='12' cy='8' r='1.9'/%3E%3Ccircle cx='16.4' cy='9.6' r='1.8'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+  border-radius: 50%;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.55));
+}
+
+.hud-bottom {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 12px 16px 18px;   /* 底 18：血条底座与经验条之间留出缝 */
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.hud-hp { display: flex; align-items: center; gap: 10px; max-width: 520px; }
+/* 血条由显示帧SVG绘制，DOM壳只保留武器和属性栏的布局位置。 */
+.hud-hp-bar {
+  flex: 1; height: 16px;
+  visibility: hidden;
+}
+#hud-hp-ghost { width: 78px; height: 15px; visibility: hidden; }
+
+.hud-weapons { display: flex; gap: 6px; flex-wrap: wrap; }
+.hud-weapon {
+  width: 40px; height: 40px;
+  border: 1px solid var(--line);
+  background: rgba(33,37,52,.86);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  font-size: 10px; font-weight: 700;
+  color: var(--text-dim);
+}
+.hud-weapon .w-tag {
+  position: absolute; right: 2px; bottom: 1px;
+  font-size: 8px; color: var(--gold); font-weight: 800;
+}
+.hud-weapon .w-glyph { font-size: 18px; line-height: 1; }
+.hud-weapon.tier-1 { border-color: #6b7280; background: linear-gradient(180deg, rgba(130,138,152,.30), rgba(33,37,52,.88)); }
+.hud-weapon.tier-2 { border-color: #5fd3e8; background: linear-gradient(180deg, rgba(95,211,232,.26), rgba(26,42,52,.88)); }
+.hud-weapon.tier-3 { border-color: #b794f6; background: linear-gradient(180deg, rgba(183,148,246,.28), rgba(40,30,58,.88)); }
+.hud-weapon.tier-4 {
+  border-color: #ffc857; box-shadow: 0 0 10px rgba(255,200,87,.35);
+  background: linear-gradient(180deg, rgba(255,200,87,.30), rgba(56,40,14,.9));
+}
+
+.hud-stats {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.hud-stat b {
+  color: #ffd23a; font-weight: 800;
+  text-shadow: 0 0 6px rgba(255,210,58,.35);
+}

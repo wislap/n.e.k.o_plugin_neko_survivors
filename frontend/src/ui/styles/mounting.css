@@ -1,0 +1,12 @@
+/* React mounting adapters; reference selectors above retain their original values. */
+html,body,#root{width:100%;height:100%;margin:0;overflow:hidden}
+.game-shell,.game-canvas{position:absolute;inset:0}
+.game-canvas>canvas{display:block;width:100%;height:100%}
+.has-sprite .glyph-auto{visibility:hidden}
+.runtime-diagnostics{position:absolute;right:8px;bottom:8px;z-index:100;width:min(440px,90vw);max-height:40vh;overflow:auto;padding:8px;background:#0b1b28ed;color:#e6f3ff;font:11px monospace}
+.runtime-diagnostics pre{white-space:pre-wrap}
+.loading-screen,.error-screen{position:absolute;inset:0;display:grid;place-items:center;background:var(--bg);z-index:100}
+.error-screen article{max-width:600px;padding:24px}
+.notifications{position:absolute;top:84px;left:50%;transform:translateX(-50%);z-index:40;pointer-events:none}
+.notification{background:rgba(33,37,52,.5);border:1px solid var(--line);border-radius:99px;padding:5px 16px;margin:4px;font-size:13px;font-weight:600}
+.notification.bad{border-color:var(--red);color:#ffb3b8}.notification.good{border-color:var(--green);color:#b6f5d4}

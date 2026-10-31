@@ -1,0 +1,15 @@
+/* 基础排版 → 组件布局 → 交互修饰 → 主题外观 → React 挂载适配。
+ * 修改现有属性的归属声明，避免在后续文件追加相同选择器的覆盖。 */
+@import "./hud-adapter.css";
+@import "./foundation.css";
+@import "./hud.css";
+@import "./screens.css";
+@import "./title.css";
+@import "./inventory.css";
+@import "./results-settings.css";
+@import "./avatar.css";
+@import "./cards-and-shop.css";
+@import "./sprite-icons.css";
+@import "./polish.css";
+@import "./theme.css";
+@import "./mounting.css";

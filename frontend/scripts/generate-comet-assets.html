@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>离线生成原版彗星固定径向纹理</title>
+<p>仅离线执行固定参考 Canvas2D 指令；产品只读取导出的 PNG。本页不进入产品入口。</p>
+<pre id="status">generating</pre>
+<script>
+'use strict';
+const source = {
+  referenceCommit: '5ade0bb30726dc6207e616f1560af42cb99b6fb4',
+  path: 'static/game/src/systems/comet-fx.js',
+  sourceSha256: '660e1cfeef440e058f9873145b59909cc1775ed6eda230df1354ba4e4afe0b58',
+  operations: 'radial():33–38; bakeWaveRing():92–97; ensure():103–105',
+  outputDirectory: 'frontend/public/assets/fx/',
+  browser: navigator.userAgent,
+};
+const definitions = {
+  hot: { size: 128, stops: [[0, 'rgba(255,248,236,1)'], [.2, 'rgba(255,225,214,.95)'], [.45, 'rgba(255,192,96,.55)'], [1, 'rgba(255,140,60,0)']] },
+  orange: { size: 128, stops: [[0, 'rgba(255,230,160,.95)'], [.3, 'rgba(255,122,48,.85)'], [.7, 'rgba(240,56,4,.4)'], [1, 'rgba(208,48,16,0)']] },
+  red: { size: 128, stops: [[0, 'rgba(240,80,30,.8)'], [.45, 'rgba(208,48,16,.55)'], [.8, 'rgba(138,26,8,.2)'], [1, 'rgba(138,26,8,0)']] },
+  warm: { size: 256, stops: [[0, 'rgba(255,200,120,0)'], [.62, 'rgba(255,120,60,0)'], [.8, 'rgba(255,240,220,.9)'], [.9, 'rgba(255,100,50,.5)'], [1, 'rgba(255,60,20,0)']] },
+  cool: { size: 256, stops: [[0, 'rgba(255,255,255,0)'], [.66, 'rgba(255,230,230,0)'], [.82, 'rgba(255,250,250,.85)'], [.92, 'rgba(255,200,200,.35)'], [1, 'rgba(255,150,150,0)']] },
+};
+window.__COMET_SOURCE_ASSETS__ = { status: 'generating', source, assets: [] };
+(async () => {
+  for (const [name, definition] of Object.entries(definitions)) {
+    const canvas = document.createElement('canvas');
+    canvas.width = definition.size; canvas.height = definition.size;
+    const context = canvas.getContext('2d');
+    const gradient = context.createRadialGradient(definition.size / 2, definition.size / 2, 0,
+      definition.size / 2, definition.size / 2, definition.size / 2);
+    for (const [offset, color] of definition.stops) gradient.addColorStop(offset, color);
+    context.fillStyle = gradient; context.fillRect(0, 0, definition.size, definition.size);
+    const dataUrl = canvas.toDataURL('image/png');
+    const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1)), character => character.charCodeAt(0));
+    const sha256 = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(value => value.toString(16).padStart(2, '0')).join('');
+    window.__COMET_SOURCE_ASSETS__.assets.push({ name, file: `comet-source-${name}.png`, width: canvas.width,
+      height: canvas.height, bytes: bytes.length, sha256, dataUrl });
+    const download = document.createElement('a'); download.download = `comet-source-${name}.png`;
+    download.href = dataUrl; download.textContent = download.download; document.body.append(download, document.createElement('br'));
+  }
+  window.__COMET_SOURCE_ASSETS__.status = 'ready';
+  document.querySelector('#status').textContent = JSON.stringify({ source,
+    assets: window.__COMET_SOURCE_ASSETS__.assets.map(({ dataUrl, ...metadata }) => metadata) }, null, 2);
+})().catch(error => {
+  window.__COMET_SOURCE_ASSETS__.status = 'failed';
+  window.__COMET_SOURCE_ASSETS__.error = String(error);
+  document.querySelector('#status').textContent = String(error);
+});
+</script>

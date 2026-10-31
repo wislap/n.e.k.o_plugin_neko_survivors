@@ -1,0 +1,158 @@
+{
+  "files": [
+    {
+      "alpha": 1,
+      "clipping": "runtime hexagon",
+      "height": 128,
+      "name": "metal.png",
+      "primitive": "linear",
+      "sha256": "182bc8572a496d8e53c4a59506c8ce5bd363e2c8b381db60206bc78f46f91ac2",
+      "width": 128
+    },
+    {
+      "color": "#5fd3e8",
+      "height": 128,
+      "name": "glow_5fd3e8.png",
+      "primitive": "radial",
+      "sha256": "39c811b0081fb922bffdd4c2066aba7e37dbc6bdb5d4cbdc0e54bd44d6af0bf7",
+      "width": 128
+    },
+    {
+      "color": "#6ee7a8",
+      "height": 128,
+      "name": "glow_6ee7a8.png",
+      "primitive": "radial",
+      "sha256": "9799f2d65264cd0fdcbcaf2dc9a883a704a8791c15bf0c776654e35d0eb067ab",
+      "width": 128
+    },
+    {
+      "color": "#8fd9f0",
+      "height": 128,
+      "name": "glow_8fd9f0.png",
+      "primitive": "radial",
+      "sha256": "7ea9a970cf744d2c141fbbe723de7498e48faffeb9527fa80e292ec574f30102",
+      "width": 128
+    },
+    {
+      "color": "#9aa3bb",
+      "height": 128,
+      "name": "glow_9aa3bb.png",
+      "primitive": "radial",
+      "sha256": "389426885978af35bc90c7487014f6a15d0965ab5c8b348b10e1ccc1dc44431d",
+      "width": 128
+    },
+    {
+      "color": "#a9b4c9",
+      "height": 128,
+      "name": "glow_a9b4c9.png",
+      "primitive": "radial",
+      "sha256": "0865799fc75905ab9b688703dec80395ffe5f9dc5f0ded142c581da84fca4fc2",
+      "width": 128
+    },
+    {
+      "color": "#b794f6",
+      "height": 128,
+      "name": "glow_b794f6.png",
+      "primitive": "radial",
+      "sha256": "8edf588f8906b7cbde8da08fc5a629ee360f4f679757189cab238314a37d44e8",
+      "width": 128
+    },
+    {
+      "color": "#d9b382",
+      "height": 128,
+      "name": "glow_d9b382.png",
+      "primitive": "radial",
+      "sha256": "aec5f8142d2b8511e6595def688197ff7ae723e6447f1e377a4a28fe7ad34c56",
+      "width": 128
+    },
+    {
+      "color": "#ff4d94",
+      "height": 128,
+      "name": "glow_ff4d94.png",
+      "primitive": "radial",
+      "sha256": "ca733bc804a251d9f863ef41e69256c9dd585c37d9a79f85c0c5b3cec9905848",
+      "width": 128
+    },
+    {
+      "color": "#ff7043",
+      "height": 128,
+      "name": "glow_ff7043.png",
+      "primitive": "radial",
+      "sha256": "064f3e18fcaba304a12cde08d7de82f20b57fd2402a2d3783dfa1876d2839e20",
+      "width": 128
+    },
+    {
+      "color": "#ff9f68",
+      "height": 128,
+      "name": "glow_ff9f68.png",
+      "primitive": "radial",
+      "sha256": "6e394a9de8183c8ef9ab560d1d9a4c603e9cd49bf16eaef20a4d1a075f7420f6",
+      "width": 128
+    },
+    {
+      "color": "#ffc857",
+      "height": 128,
+      "name": "glow_ffc857.png",
+      "primitive": "radial",
+      "sha256": "6dc9b45032923eb651b80327451d6bf3cb57427150dadb31dfaf4ee68ea1d601",
+      "width": 128
+    }
+  ],
+  "glowSourceSha256": "60eb2fd2f3d55292a0854e081cde2512f4e9254646219a0d987f63ba408197be",
+  "glowStops": [
+    [
+      0,
+      "#ffffff"
+    ],
+    [
+      0.45,
+      "<color>"
+    ],
+    [
+      1,
+      "rgba(0,0,0,0)"
+    ]
+  ],
+  "metalSourceSha256": "0a6c021510079127503482f48a73bb8d2ee1c58e5b6f929cf9875628b7eef074",
+  "metalStops": [
+    [
+      0,
+      "#3d4356"
+    ],
+    [
+      0.45,
+      "#2a2e3d"
+    ],
+    [
+      1,
+      "#1c1f2b"
+    ]
+  ],
+  "referenceCommit": "5ade0bb30726dc6207e616f1560af42cb99b6fb4",
+  "size": [
+    128,
+    128
+  ],
+  "sourcePath": "static/game/src/systems/renderer.js",
+  "sourceSha256": "a4fbfa0cdf2a94a3114377c0dfae55e8c854e0db2afb5907849d593992f73630",
+  "paletteSource": {
+    "consumers": [
+      "Weapon._fire shot/spread/homing/bounce",
+      "Turret deploy"
+    ],
+    "colors": [
+      "#9aa3bb",
+      "#b794f6",
+      "#ffc857",
+      "#a9b4c9",
+      "#ff9f68",
+      "#8fd9f0",
+      "#d9b382",
+      "#ff7043",
+      "#5fd3e8",
+      "#ff4d94",
+      "#6ee7a8"
+    ],
+    "excluded": "Pet attacks deal direct damage; character and item colors are not ordinary glow producers."
+  }
+}

@@ -1,0 +1,54 @@
+/* -------- 结算 -------- */
+.result-stats {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px; margin: 16px 0;
+}
+
+.result-stat {
+  display: flex; align-items: center; gap: 9px; padding: 8px 11px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+.rs-icon { width: 20px; height: 20px; flex: none; }
+.result-stat.tone-gold .rs-icon { filter: drop-shadow(0 0 4px rgba(207,160,85,.4)); }
+
+.card .avatar .up-icon { display: block; margin: auto; }
+.card .avatar { display: grid; place-items: center; }
+.result-stat .rs-txt { min-width: 0; }
+.result-stat .k { font-size: 10px; letter-spacing: .06em; color: var(--text-dim); opacity: .8; }
+.result-stat .v { font-size: 20px; font-weight: 800; line-height: 1.15; }
+.result-stat.tone-violet .v { color: #7ee7ff; text-shadow: 0 0 10px rgba(126,231,255,.35); }
+/* 进阶：局内刚吃过对应道具，下次暂停时该数值闪一下绿光 */
+.result-stat.rs-flash { animation: statFlash 1.1s ease-out; }
+@keyframes statFlash {
+  0%   { background: rgba(84,222,140,.42); border-color: rgba(120,255,170,.8); }
+  60%  { background: rgba(84,222,140,.16); }
+  100% { background: linear-gradient(165deg, rgba(52,42,78,.45), rgba(22,18,36,.62)); }
+}
+
+input[type="range"].fx-slider {
+  -webkit-appearance: none; appearance: none;
+  height: 18px; background: transparent; flex: 1; cursor: pointer;
+}
+input[type="range"].fx-slider::-webkit-slider-runnable-track {
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,.75),
+    inset 0 -1px 0 rgba(255,255,255,.06),
+    0 1px 0 rgba(255,255,255,.05);
+}
+input[type="range"].fx-slider::-webkit-slider-thumb { appearance: none;
+}
+input[type="range"].fx-slider::-moz-range-track {
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.75);
+}
+
+/* -------- 键位提示 -------- */
+.keys { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.key {
+  font-size: 11px; padding: 3px 9px;
+}
+.key b { color: var(--text); }
+
+/* -------- 滚动条 -------- */
+#overlay::-webkit-scrollbar { width: 10px; }
+#overlay::-webkit-scrollbar-thumb { background: #333952; border-radius: 99px; }
+#overlay::-webkit-scrollbar-track { background: transparent; }

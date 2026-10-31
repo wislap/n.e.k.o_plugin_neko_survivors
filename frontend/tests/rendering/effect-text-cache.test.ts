@@ -1,0 +1,34 @@
+import { expect, it, vi } from 'vitest';
+import { Text, Texture, TextureSource } from 'pixi.js';
+import type { EffectView } from '../../src/game';
+import { EffectTextCache } from '../../src/rendering/effects/text-cache';
+import { EffectDisplay } from '../../src/rendering/effects/effect-display';
+import type { PixiRenderer } from '../../src/rendering/create-renderer';
+it('pins the exact reference text key, reuses it across births, and balances managed references', () => {
+  const active = new Map<string,{ texture:Texture; refs:number }>();
+  const get = vi.fn((text:Text) => { Reflect.set(text,'_resolution',2); let row=active.get(text.styleKey); if(!row){row={texture:new Texture({source:new TextureSource({width:128,height:64,autoGarbageCollect:true})}),refs:0};active.set(text.styleKey,row);}row.refs++;return row.texture; });
+  const decrease=vi.fn((key:string)=>{active.get(key)!.refs--;});
+  const renderer={canvasText:{getManagedTexture:get,decreaseReferenceCount:decrease,getReferenceCount:(key:string)=>active.get(key)?.refs??0}} as unknown as PixiRenderer;
+  const cache=new EffectTextCache(renderer,2),view:EffectView={id:1,kind:'nova',x:2,y:3,radius:14,color:'#79dfff',alpha:.6,progress:.2,notes:[{text:'🎵',size:16,angle:0,speed:1,rotation:0,spin:0}]};
+  cache.begin('ordinary:50');cache.pinNote('🎵');cache.pinNote('🎵');
+  expect(get).toHaveBeenCalledTimes(1);expect(cache.diagnostics).toMatchObject({labels:1,hits:1,misses:1});
+  const display=new EffectDisplay();display.sync(view,0,[cache.pinNote('🎵')]);const text=display.children.find(c=>c instanceof Text) as Text;
+  const texture=get(text);expect(active.size).toBe(1);expect(active.get(text.styleKey)!.refs).toBe(2);expect(texture.source.autoGarbageCollect).toBe(false);
+  const key=text.styleKey;decrease(key);display.destroy();expect(active.get(key)!.refs).toBe(1);
+  cache.pinNote('♫');cache.pinNote('♪');
+  expect(cache.diagnostics).toMatchObject({labels:2,skipped:1});cache.begin('ordinary:51');
+  expect([...active.values()].every(v=>v.refs===0&&v.texture.source.autoGarbageCollect)).toBe(true);
+  const calls=decrease.mock.calls.length;cache.clear();cache.clear();expect(decrease).toHaveBeenCalledTimes(calls);
+  for(const v of active.values())v.texture.destroy(true);
+});
+it('shares larger note glyphs while retaining each original size, placement and immutable style', () => {
+  const active = new Map<string,{texture:Texture;refs:number}>();
+  const get=vi.fn((text:Text)=>{Reflect.set(text,'_resolution',2);let row=active.get(text.styleKey);if(!row){row={texture:new Texture({source:new TextureSource({width:128,height:128})}),refs:0};active.set(text.styleKey,row);}row.refs++;return row.texture;});
+  const renderer={resolution:2,canvasText:{getManagedTexture:get,decreaseReferenceCount:(key:string)=>{active.get(key)!.refs--;},getReferenceCount:(key:string)=>active.get(key)?.refs??0}} as unknown as PixiRenderer;
+  const cache=new EffectTextCache(renderer),view:EffectView={id:1,kind:'nova',x:1,y:2,radius:60,color:'#fff',alpha:.6,progress:.3,notes:[{text:'🎵',size:15.3,angle:.3,speed:.8,rotation:.1,spin:2},{text:'🎵',size:20.8,angle:2,speed:1.1,rotation:.3,spin:1}]};
+  const before=structuredClone(view),styles=view.notes!.map(n=>cache.pinNote(n.text));expect(styles[0]).toBe(styles[1]);expect(get).toHaveBeenCalledTimes(1);
+  const display=new EffectDisplay();display.sync(view,1,styles);const notes=display.children.filter(c=>c instanceof Text) as Text[];
+  expect(notes.map(t=>t.scale.x)).toEqual([15.3/32,20.8/32]);expect(notes.every(t=>t.style.fontSize===32)).toBe(true);expect(view).toEqual(before);
+  cache.clear();const replacement=view.notes!.map(n=>cache.pinNote(n.text));display.sync(view,1,replacement);
+  expect(notes.every(t=>t.style===replacement[0])).toBe(true);display.destroy();cache.clear();for(const row of active.values())row.texture.destroy(true);
+});

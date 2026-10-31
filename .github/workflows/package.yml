@@ -1,0 +1,54 @@
+name: Build verified plugin package
+on:
+  workflow_call:
+    inputs:
+      host_revision:
+        description: Exact NEKO host commit to validate against
+        default: ''
+        type: string
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: plugin-repo
+      - name: Resolve pinned host revision
+        id: host
+        env:
+          HOST_REVISION: ${{ inputs.host_revision }}
+        run: |
+          if [ -z "$HOST_REVISION" ]; then HOST_REVISION=$(cat plugin-repo/protocol/host-revision.txt); fi
+          test "${#HOST_REVISION}" -eq 40 && expr "$HOST_REVISION" : '[0-9a-f]\{40\}$'
+          echo "revision=$HOST_REVISION" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: Project-N-E-K-O/N.E.K.O
+          ref: ${{ steps.host.outputs.revision }}
+          path: neko
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: plugin-repo/frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v5
+      - name: Test and build frontend
+        working-directory: plugin-repo/frontend
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - name: Mount independent plugin
+        run: python plugin-repo/scripts/mount-for-check.py plugin-repo neko/plugin/plugins/neko_survivors_react
+      - name: Test plugin and verify release payload
+        working-directory: neko
+        run: |
+          uv run neko-plugin check plugin/plugins/neko_survivors_react --release --target-dir plugin/plugins/neko_survivors_react/dist
+          uv run python plugin/plugins/neko_survivors_react/scripts/build-package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-neko-survivors-react
+          path: neko/plugin/plugins/neko_survivors_react/dist/*.neko-plugin
+          if-no-files-found: error

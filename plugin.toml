@@ -1,12 +1,14 @@
+entries = ["game_event", "speak", "sync_avatar", "open_session", "close_session", "heartbeat_session", "avatar_state"]
+
 [plugin]
-id = "neko_survivors"
-name = "猫娘姐妹：幸存者"
+id = "neko_survivors_react"
+name = "猫娘姐妹：幸存者 React"
 type = "plugin"
 description = "自带完整游戏的弹幕生存肉鸽：WASD 走位躲避围攻，武器全自动开火，收集材料升级、合成装备，在 20 波敌潮里活下来。打开插件面板直接开玩，无需任何配置；纯静态实现，装完即玩。噩梦难度还藏着一个隐藏 Boss，等你发现。"
 short_description = "躲弹幕捡材料合成神装，猫娘武器全自动，点开就玩喵！"
 keywords = ["游戏", "幸存者", "肉鸽", "弹幕", "生存", "roguelite", "game", "survivors", "猫娘姐妹", "单机"]
 version = "0.4.18"
-entry = "plugin.plugins.neko_survivors:SurvivorsPlugin"
+entry = "neko_survivors_react_entry:SurvivorsReactPlugin"
 
 [plugin.author]
 name = "yousei1216"
@@ -27,9 +29,10 @@ enabled = true
 
 [[plugin.ui.panel]]
 id = "main"
-title = "猫娘姐妹：幸存者"
+title = "猫娘姐妹：幸存者 React"
 entry = "static/index.html"
-context = "neko_survivors"
+mode = "static"
+context = "neko_survivors_react"
 permissions = ["action:call"]
 
 [plugin_runtime]

@@ -1,0 +1,12 @@
+{
+  "avatarHostScript": "/static/game/sdk/neko-minigame-avatar-host.js",
+  "engineScripts": [
+    "/static/libs/live2dcubismcore.min.js",
+    "/static/libs/live2d.min.js",
+    "/static/libs/pixi.min.js",
+    "/static/libs/index.min.js",
+    "/static/live2d/live2d-core.js",
+    "/static/live2d/live2d-emotion.js",
+    "/static/live2d/live2d-model.js"
+  ]
+}

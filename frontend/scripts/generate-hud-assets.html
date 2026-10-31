@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>离线生成原版 HUD 小纹理</title>
+  <style>
+    body { margin: 24px; max-width: 960px; background: #eef6ff; color: #1b2a41; font: 15px/1.6 system-ui, sans-serif; }
+    article { display: inline-block; vertical-align: top; margin: 0 24px 24px 0; padding: 16px; border: 1px solid #b4cce6; border-radius: 12px; background: #fff; }
+    .preview { width: 192px; height: 192px; display: grid; place-items: center; background: repeating-conic-gradient(#dfdfdf 0 25%, #fff 0 50%) 0/16px 16px; }
+    canvas { image-rendering: pixelated; width: 144px; height: 144px; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #fff; padding: 12px; }
+    a { display: inline-block; margin-top: 10px; padding: 8px 14px; background: #2f7fd0; color: #fff; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>离线生成原版 HUD 小纹理</h1>
+  <p>仅用于仓库静态素材生成，不是游戏页面，不导入运行时，也不进入产品构建入口。这里的 Canvas2D 只执行原参考代码的固定画图指令；产品仅加载生成的 PNG，不创建这些 Canvas。</p>
+  <p>生成方式：使用与视觉验收相同的浏览器打开本页，等待两项状态均为 ready，再保存 PNG 到指定路径。不要截图、放大后截取或用其他绘图库重画。PNG 是透明背景、原始 48×48 / 8×8，和原版惰性缓存尺寸一致。</p>
+  <p>Canvas 栅格化可能随浏览器实现变化；配对验收应记录浏览器版本。若参考源发生变化，核对源文件 hash 和下方原始指令，再重新生成。</p>
+  <pre id="source"></pre>
+  <article><h2>金色猫爪 48×48</h2><div class="preview"><canvas id="paw" width="48" height="48"></canvas></div><a id="paw-save" download="hud-paw-48.png">保存 hud-paw-48.png</a><pre id="paw-info"></pre></article>
+  <article><h2>斜刻痕 8×8</h2><div class="preview"><canvas id="hatch" width="8" height="8"></canvas></div><a id="hatch-save" download="hud-hatch-8.png">保存 hud-hatch-8.png</a><pre id="hatch-info"></pre></article>
+  <script>
+    'use strict';
+    const provenance = {
+      referenceRepository: 'https://github.com/yousei1216/n.e.k.o_plugin_neko_survivors.git',
+      referenceCommit: '5ade0bb30726dc6207e616f1560af42cb99b6fb4',
+      source: 'static/game/src/systems/renderer.js',
+      sourceSha256: 'a4fbfa0cdf2a94a3114377c0dfae55e8c854e0db2afb5907849d593992f73630',
+      pawSource: 'Renderer._drawHudBars, S.pawSprite block, lines 4875–4893',
+      hatchSource: 'Renderer._drawHudBars, S.hudHatch block, lines 4674–4683',
+      outputDirectory: 'frontend/public/assets/ui/',
+      runtimeContract: 'SVG image/static PNG only; this generator is not imported by production.',
+      browser: navigator.userAgent,
+    };
+    document.getElementById('source').textContent = JSON.stringify(provenance, null, 2);
+    const paw = document.getElementById('paw'), p2 = paw.getContext('2d');
+    // Verbatim paint constants and ellipse/path order from the pinned reference.
+    p2.fillStyle = '#ffd23a';
+    p2.strokeStyle = 'rgba(120,72,10,0.9)';
+    p2.lineWidth = 2;
+    p2.beginPath();
+    p2.ellipse(24, 30, 11, 8.5, 0, 0, Math.PI * 2);
+    p2.fill(); p2.stroke();
+    for (const [px, py, pr] of [[13, 17, 4.6], [24, 13.5, 4.9], [35, 17, 4.6]]) {
+      p2.beginPath();
+      p2.ellipse(px, py, pr, pr + 0.6, 0, 0, Math.PI * 2);
+      p2.fill(); p2.stroke();
+    }
+    const hatch = document.getElementById('hatch'), t2 = hatch.getContext('2d');
+    t2.strokeStyle = 'rgba(120,170,230,0.13)';
+    t2.lineWidth = 1;
+    t2.beginPath(); t2.moveTo(-2, 10); t2.lineTo(10, -2);
+    t2.moveTo(-2, 4); t2.lineTo(4, -2); t2.stroke();
+    async function prepare(name, canvas) {
+      const data = canvas.toDataURL('image/png');
+      const bytes = Uint8Array.from(atob(data.slice(data.indexOf(',') + 1)), character => character.charCodeAt(0));
+      const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(value => value.toString(16).padStart(2, '0')).join('');
+      document.getElementById(`${name}-save`).href = data;
+      document.getElementById(`${name}-info`).textContent = JSON.stringify({ status: 'ready', width: canvas.width, height: canvas.height, pngSha256: hash, bytes: bytes.length }, null, 2);
+    }
+    for (const [name, canvas] of [['paw', paw], ['hatch', hatch]]) {
+      void prepare(name, canvas).catch(error => { document.getElementById(`${name}-info`).textContent = `FAILED: ${String(error)}`; });
+    }
+  </script>
+</body>
+</html>

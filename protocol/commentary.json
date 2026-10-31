@@ -1,0 +1,8 @@
+{
+  "eventGapsSeconds": { "run_start": 10, "wave_start": 45, "level_up": 30, "low_hp": 60, "boss_spawn": 30, "boss_phase": 30, "boss_kill": 15, "weapon_combo": 45, "death": 10, "win": 10 },
+  "defaultEventGapSeconds": 30,
+  "globalGapSeconds": 12,
+  "maxTextLength": 300,
+  "maxEventLength": 40,
+  "prompt": "主人正在玩《猫娘姐妹：幸存者》。当前战况：{text}。请按你自己的口吻回应一句简短的陪玩解说，不要复述提示格式。"
+}

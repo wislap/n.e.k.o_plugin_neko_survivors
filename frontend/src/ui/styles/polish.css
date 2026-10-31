@@ -1,0 +1,183 @@
+/* 组件视觉细节；随后加载最终主题，保留级联顺序。 */
+:root {
+  --ease-out: cubic-bezier(.2,.8,.2,1);
+}
+
+/* ---- HUD 板件：波次 / 材料 ---- */
+.hud-wave, .hud-materials {
+  position: relative;
+}
+.hud-wave::before, .hud-materials::before {
+  content: ''; position: absolute; left: -1px; top: 8px; bottom: 8px; width: 3px;
+  border-radius: 0 3px 3px 0;
+}
+.hud-wave::before {
+  background: linear-gradient(180deg, #ffd0e6, var(--pink) 50%, #a06bf5);
+  box-shadow: 0 0 10px rgba(255,123,172,.7);
+}
+.hud-materials::before {
+  background: linear-gradient(180deg, #fff0b8, var(--gold) 55%, #d98a1a);
+  box-shadow: 0 0 10px rgba(255,200,87,.7);
+}
+
+/* ---- 倒计时：猫耳板 + 大号渐变数字 + 刻度光条 ---- */
+.hud-timer {
+  top: 9px;                       /* 整板高 ≈ 52px，下沿 ≤ 61：不压 Boss 血条(y=62)与提示条(y=84) */
+  width: 280px;
+  padding: 4px 20px 6px;
+}
+.hud-timer::before, .hud-timer::after {
+  content: ''; position: absolute; top: -8px; width: 20px; height: 11px;
+  clip-path: polygon(0 100%, 50% 0, 100% 100%);
+}
+.hud-timer::before { left: 30px; transform: rotate(-8deg); }
+.hud-timer::after { right: 30px; transform: rotate(8deg); }
+#hud-timer-text {
+  font-size: 28px; font-weight: 900; letter-spacing: .04em; line-height: 1.05;
+  text-shadow: none;
+}
+#hud-timer-label {
+  font-size: 10px; letter-spacing: .3em; text-indent: .3em; line-height: 1.1;
+}
+.hud-timer-bar {
+  position: relative; margin-top: 4px; height: 7px;
+  border: 1px solid rgba(255,160,205,.30); overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.7);
+}
+#hud-timer-fill {
+  position: relative;
+  box-shadow: 0 0 10px rgba(255,123,172,.55);
+}
+#hud-timer-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.45), rgba(255,255,255,0) 55%);
+}
+.hud-timer-bar::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), rgba(0,0,0,.55) calc(10% - 1px) 10%);
+}
+/* 最后 5 秒：数字变红、光条变红、板件红光脉动 */
+.hud-timer.urgent { border-color: rgba(255,95,109,.75); animation: timerPulse .6s ease-in-out infinite; }
+.hud-timer.urgent #hud-timer-fill { box-shadow: 0 0 12px rgba(255,60,80,.8); }
+@keyframes timerPulse {
+  0%, 100% { box-shadow: var(--plate-shadow), 0 0 14px rgba(255,60,80,.25); }
+  50%      { box-shadow: var(--plate-shadow), 0 0 30px rgba(255,60,80,.62); }
+}
+
+/* ---- 武器格 / 提示条 ---- */
+.hud-weapon { border-radius: 9px; box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 2px 8px rgba(0,0,0,.45); }
+.hud-weapon.tier-4 { animation: tierGlow 2.4s ease-in-out infinite; }
+@keyframes tierGlow {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 8px rgba(255,200,87,.3); }
+  50%      { box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 16px rgba(255,200,87,.6); }
+}
+
+/* ---- 面板：双层细框 + 四角金色括号 ---- */
+.screen { position: relative; border-color: var(--plate-edge); }
+.screen::before {
+  content: ''; position: absolute; inset: 6px; border-radius: 13px; pointer-events: none;
+  border: 1px solid rgba(255,210,120,.12);
+}
+.screen::after {
+  content: ''; position: absolute; inset: 11px; pointer-events: none;
+  --b: rgba(255,214,130,.78);
+  background:
+    linear-gradient(var(--b), var(--b)) top left / 20px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) top left / 2px 20px no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / 20px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / 2px 20px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / 20px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / 2px 20px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / 20px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / 2px 20px no-repeat;
+  filter: drop-shadow(0 0 4px rgba(255,200,100,.45));
+}
+
+/* ---- 按钮：扫光 ---- */
+.btn { position: relative; overflow: hidden; }
+.btn::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.30) 50%, transparent 70%);
+  transform: translateX(-120%); transition: transform .55s var(--ease-out);
+}
+.btn:hover:not(:disabled)::after { transform: translateX(120%); }
+.btn.primary { text-shadow: 0 1px 0 rgba(255,255,255,.25); }
+
+/* ---- 卡片：左上高光 + 悬停抬起发光 ---- */
+.card::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,0) 42%);
+}
+.card:hover:not(.cant-afford) { box-shadow: 0 12px 28px rgba(0,0,0,.42), 0 0 20px rgba(255,123,172,.2); }
+
+/* ---- 浮动提示 / 数值面板 ---- */
+.tip-float { background: var(--plate-bg); border: 1px solid var(--plate-edge); box-shadow: var(--plate-shadow); }
+.stat-panel { background: var(--plate-bg); border-color: var(--plate-edge); box-shadow: var(--plate-shadow); }
+
+::selection { background: rgba(255,123,172,.4); }
+:focus-visible { outline: 2px solid rgba(255,214,130,.8); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .hud-timer.urgent, .hud-weapon.tier-4 { animation: none; }
+  .btn::after { transition: none; }
+}
+
+/* 界面修饰层负责长面板滚动、文字可读性、点击区域与焦点反馈，保留基础DOM结构。 */
+
+/* ① 溢出居中：用 margin:auto 居中——空间够就居中，不够就顶对齐并可滚动（flex 居中会把上半部分裁到负坐标） */
+#overlay { align-items: flex-start; justify-content: flex-start; scrollbar-gutter: stable both-edges; }
+#overlay > .screen, #overlay > .title-scene, #overlay > .shop-screen { margin: auto; }
+#overlay > :not(.screen):not(.title-scene):not(.shop-screen) { margin: auto; }
+
+/* ② 文字下限与对比度 */
+.card .card-role { font-size: 12px; letter-spacing: .02em; }
+.card .card-desc { font-size: 12.5px; line-height: 1.55; }
+.card .stat-line { font-size: 12px; }
+.card .stat-line .k { color: #aeb7cf; }
+.card .stat-line .v { font-size: 12.5px; }
+.card .card-name { font-size: 16px; }
+
+/* ③ 点击目标 ≥ 36px（含 2P/3P/4P、小按钮） */
+#overlay .btn, #overlay button { min-height: 36px; }
+#overlay .btn.small { padding-top: 7px; padding-bottom: 7px; }
+
+/* ④ 选中卡：更清楚的"我选了这个"——柔和外发光 + 顶部高光条 + 轻微抬起；未选中卡不再靠透明度发灰 */
+.char-grid .card:not(.selected) { opacity: .88; filter: saturate(.9); }
+.char-grid .card.selected {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 34px rgba(0,0,0,.5), 0 0 0 1px rgba(255,150,200,.55), 0 0 26px rgba(255,123,172,.28);
+}
+.char-grid .card.selected::after {
+  content: ''; position: absolute; left: 12px; right: 12px; top: 0; height: 3px; border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, transparent, var(--pink), var(--gold), var(--pink), transparent); opacity: .95;
+}
+
+/* ⑤ 键盘焦点环（原先没有，Tab 键切换时完全看不出焦点在哪） */
+#overlay .btn:focus-visible, #overlay button:focus-visible, .card:focus-visible {
+  outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 10px;
+}
+
+/* ⑥ 窄/矮窗口：面板边距收紧，避免 800px 以下的窗口上有一半内容在滚动区外 */
+@media (max-height: 860px) {
+  #overlay { padding: 14px; }
+  .screen { padding: 20px 24px 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen { animation: none; }
+  .char-grid .card.selected { transform: none; }
+}
+
+/* ⑦ 角色卡的「能力/技能」说明是卡片里最重要的内容，却只有 10px / 9.5px —— 提到可读尺寸 */
+.card .skill-text { font-size: 11.5px; line-height: 1.5; }
+.card .skill-tag { font-size: 10.5px; padding: 1px 7px; letter-spacing: .02em; }
+/* ⑧ 标题页操作提示被 opacity:.5 压到 3.1:1 —— 抬到 ≥4.5:1 */
+.title-panel .key { font-size: 12px; opacity: .82; }
+.title-panel .keys { opacity: 1; }
+
+/* ⑨ 商店的小字：9px / 8.5px 的「出售 +6」「普通」「?」在 1080p 以下基本读不出来，统一抬到 ≥10px */
+.weapon-slot .slot-name { font-size: 10.5px; }
+.weapon-slot .slot-tier { font-size: 10px; letter-spacing: .02em; }
+.weapon-slot .slot-sell { font-size: 10.5px; }
+.tier-badge, .tier-badge.t1 { font-size: 11px; }
+.hint { font-size: 12px; }
+.sp-title { font-size: 12px; }
+.sp-info { font-size: 10.5px; }

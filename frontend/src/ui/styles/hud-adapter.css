@@ -1,0 +1,4 @@
+/* SVG display overlay and live top-bar interaction adapters. */
+#hud.hud-flandre .hud-materials { margin-top: 88px; }
+#hud .hud-weapon, #hud .hud-stat { pointer-events: auto; }
+.hud-bars-svg { z-index: 0; position: absolute; inset: 0; display: block; overflow: hidden; pointer-events: none; }

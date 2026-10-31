@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><base href="../../">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Runtime 真实头像释放验收 · 源码夹具</title>
+  <style>
+    body{font:15px/1.5 system-ui;background:#142331;color:#eef;margin:20px}button{padding:10px;margin:8px}
+    .stage{display:flex;gap:16px}#game{width:700px;height:420px}#avatar{width:260px;height:420px}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#09131e;padding:12px}.warning{color:#ffd18e}
+  </style>
+</head>
+<body>
+  <h1>文档存活期间的 Runtime / 真实头像释放验收</h1>
+  <p class="warning">Vite 源码夹具，不是生产 bundle。仅在隔离 read-model QA origin 使用；真实当前模型，无 SDK、开局、角色切换、LLM 或 TTS。</p>
+  <p>公开 createRuntime 标题态 → watchAvatar → 实际 ready → dispose；保留文档等待真实释放 ACK 与两个 RAF。每轮最多 75 秒，清理最多 5 秒。</p>
+  <button id="run">运行 3 轮</button><pre id="status">等待启动；请先安装既有 __qaTimingObserver。</pre>
+  <div class="stage"><div id="game"></div><div id="avatar"></div></div>
+  <pre id="results"></pre><pre id="errors"></pre>
+  <script type="module">
+    const native = { set: window.setTimeout.bind(window), clear: window.clearTimeout.bind(window),
+      raf: window.requestAnimationFrame.bind(window), cancel: window.cancelAnimationFrame.bind(window) };
+    const game = document.querySelector('#game'), avatar = document.querySelector('#avatar');
+    const status = document.querySelector('#status'), output = document.querySelector('#results'), button = document.querySelector('#run');
+    const reports = [], errors = []; let busy = false, retired = false, current = null, controller = null;
+    const clone = value => JSON.parse(JSON.stringify(value));
+    const errorValue = error => ({ name: error?.name || 'Error', message: error?.message || String(error) });
+    const observer = () => window.__qaTimingObserver?.snapshot ? clone(window.__qaTimingObserver.snapshot()) : 'NOT_OBSERVED';
+    const show = value => { status.textContent = JSON.stringify(value, null, 2); output.textContent = JSON.stringify(reports, null, 2); };
+    function bounded(operation, deadline, phase) {
+      return new Promise((resolve, reject) => {
+        const id = native.set(() => reject(new Error('NOT_VERIFIED: ' + phase + ' native deadline')), Math.max(0, deadline - performance.now()));
+        Promise.resolve(operation).then(resolve, reject).finally(() => native.clear(id)).catch(() => {});
+      });
+    }
+    function nextFrame(deadline) {
+      return new Promise((resolve, reject) => {
+        let raf, timer, settled = false;
+        const timeout = () => {
+          if (settled) return; settled = true;
+          if (raf !== undefined) native.cancel(raf);
+          if (timer !== undefined) native.clear(timer);
+          reject(new Error('NOT_VERIFIED: cleanup/display RAF deadline'));
+        };
+        if (performance.now() >= deadline) { timeout(); return; }
+        timer = native.set(timeout, deadline - performance.now());
+        try { raf = native.raf(() => {
+          if (settled) return;
+          if (performance.now() >= deadline) { timeout(); return; }
+          settled = true; native.clear(timer); resolve();
+        }); } catch (error) { settled = true; native.clear(timer); reject(error); }
+      });
+    }
+    async function until(condition, deadline, phase) {
+      while (!condition()) {
+        if (retired || performance.now() >= deadline) throw new Error('NOT_VERIFIED: ' + phase + ' deadline/page retired');
+        await nextFrame(deadline);
+      }
+    }
+    function capture(runtime, gl) {
+      return { diagnostics: clone(runtime.diagnostics), observer: observer(), iframeCount: avatar.querySelectorAll('iframe').length,
+        canvasCount: game.querySelectorAll('canvas').length, gameGl2ContextLost: gl ? gl.isContextLost() : 'NOT_OBSERVED' };
+    }
+    async function loadRuntime() {
+      const url = new URL(new URLSearchParams(location.search).get('viteOrigin') || '');
+      if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || !url.port
+        || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('Explicit loopback viteOrigin with a port is required');
+      if (!location.pathname.startsWith('/plugin/neko_survivors_react/ui/vendor/__codex_runtime_qa__/')) throw new Error('Use only the isolated private plugin QA static route');
+      const deadline = performance.now() + 20_000;
+      const RefreshRuntime = (await bounded(import(url.origin + '/@react-refresh'), deadline, 'Vite ReactRefresh')).default;
+      RefreshRuntime.injectIntoGlobalHook(window); window.$RefreshReg$ = () => {}; window.$RefreshSig$ = () => type => type;
+      window.__vite_plugin_react_preamble_installed__ = true;
+      await bounded(import(url.origin + '/@vite/client'), deadline, 'Vite client');
+      const module = await bounded(import(url.origin + '/src/app/runtime.ts'), deadline, 'Vite runtime import');
+      return { createRuntime: module.createRuntime, source: url.origin + '/src/app/runtime.ts' };
+    }
+    async function round(number, api) {
+      const report = { round: number, source: api.source, productionBundle: false, startedAt: performance.now(), messages: [] };
+      reports.push(report); const deadline = performance.now() + 75_000;
+      let runtime, gl, frame, mountId, visible = false;
+      controller = new AbortController(); const owner = controller;
+      const message = event => {
+        const candidate = frame || avatar.querySelector('iframe');
+        if (event.origin !== location.origin || !candidate || event.source !== candidate.contentWindow || event.data?.type !== 'neko-survivors-react-avatar') return;
+        if (mountId && event.data.mountId !== mountId) return;
+        frame = candidate; mountId = event.data.mountId; report.messages.push(clone(event.data));
+        if (event.data.status === 'disposed') report.avatarDisposalAck = clone(event.data.report);
+      };
+      window.addEventListener('message', message);
+      try {
+        const creation = api.createRuntime(game, { profile: true, signal: owner.signal });
+        void creation.then(value => { if (owner.signal.aborted) value.dispose(); }, () => {});
+        runtime = await bounded(creation, deadline, 'createRuntime'); current = runtime;
+        if (runtime.getSnapshot().game.phase !== 'title' || runtime.diagnostics.hostMode !== 'plugin') throw new Error('Expected natural plugin host/title; no gameplay command is allowed');
+        const canvas = game.querySelector('canvas');
+        if (runtime.diagnostics.backend === 'webgl2') gl = canvas?.getContext('webgl2');
+        runtime.watchAvatar(avatar, value => { visible = value; });
+        await until(() => visible && report.messages.some(value => value.status === 'ready'), deadline, 'actual avatar ready');
+        await nextFrame(deadline); report.active = capture(runtime, gl);
+        report.activePoll = report.active.observer?.timers?.find(timer => timer.delayMs === 5000 && /avatar-watch/.test(timer.source || '')) || 'NOT_OBSERVED';
+      } catch (error) { report.error = errorValue(error); }
+      finally {
+        if (runtime) {
+          runtime.dispose(); owner.abort(); current = null;
+          report.afterImmediate = capture(runtime, gl);
+          report.cleanupTimers = report.afterImmediate.observer?.timers?.filter(timer => [3000, 100].includes(timer.delayMs)) || [];
+          const cleanupDeadline = performance.now() + 5000;
+          try {
+            await until(() => !!report.avatarDisposalAck && avatar.querySelectorAll('iframe').length === 0, cleanupDeadline, 'actual avatar ACK/DOM removal');
+            const rafDeadline = Math.min(cleanupDeadline, performance.now() + 1500);
+            await nextFrame(rafDeadline); await nextFrame(rafDeadline);
+            await until(() => runtime.diagnostics.assets.pending === 0, cleanupDeadline, 'pending renderer assets');
+          } catch (error) { report.cleanupError = errorValue(error); }
+          report.after = capture(runtime, gl);
+        } else owner.abort();
+        window.removeEventListener('message', message); controller = null;
+      }
+      const after = report.after, timing = after?.observer, ack = report.avatarDisposalAck;
+      report.cleanupTimerWork = timing && timing !== 'NOT_OBSERVED' && report.afterImmediate?.observer !== 'NOT_OBSERVED'
+        ? { executedDelta: timing.timerExecuted - report.afterImmediate.observer.timerExecuted,
+            cancelledDelta: timing.timerCancelled - report.afterImmediate.observer.timerCancelled,
+            meaning: 'Aggregate cancellation plus final zero pending work; the initial 100ms retry may execute and a replacement retry may be the one cancelled.' } : 'NOT_OBSERVED';
+      report.checks = { titleOnly: !!runtime && runtime.getSnapshot().game.phase === 'title', activePollObserved: !!report.activePoll && report.activePoll !== 'NOT_OBSERVED',
+        actualConfirmedAvatarAck: ack?.confirmed === true && (ack.modelsObserved || 0) > 0 && (ack.appsObserved || 0) > 0
+          && ack.contextsObserved > 0 && ack.contextsLost === ack.contextsObserved && Array.isArray(ack.errors) && ack.errors.length === 0,
+        cleanupTimersObserved: [3000, 100].every(delay => report.cleanupTimers?.some(timer => timer.delayMs === delay)),
+        cleanupTimerWorkRetired: timing !== 'NOT_OBSERVED' && timing?.pendingApplicationTimers === 0
+          && timing?.timerCancelled >= (report.afterImmediate?.observer?.timerCancelled ?? Infinity) + 2,
+        iframeRemoved: after?.iframeCount === 0, gameCanvasRemoved: after?.canvasCount === 0, gameGl2Lost: after?.gameGl2ContextLost === true,
+        noDisposeFailure: !!after && !Object.prototype.hasOwnProperty.call(after.diagnostics.outputFailures, 'dispose'),
+        rendererReleased: after?.diagnostics.disposed === true && after.diagnostics.assets.loaded === 0 && after.diagnostics.assets.pending === 0
+          && after.diagnostics.generatedTextures.cached === 0 && after.diagnostics.generatedTextures.generated === after.diagnostics.generatedTextures.released
+          && Object.values(after.diagnostics.objects).every(value => value === 0),
+        observedTimersCleared: timing !== 'NOT_OBSERVED' && timing?.pendingApplicationTimers === 0 && report.cleanupTimers?.every(timer => !timing.timers.some(item => item.id === timer.id)),
+        observedRafAndListenersCleared: timing !== 'NOT_OBSERVED' && timing?.pendingApplicationRaf === 0 && timing?.permanentWindowDocumentListeners === 0 };
+      report.status = report.error || report.cleanupError ? 'NOT_VERIFIED' : Object.values(report.checks).every(Boolean) ? 'OBSERVED_CHECKS_PASSED' : 'FAILED_OR_NOT_OBSERVED';
+      report.elapsedMs = performance.now() - report.startedAt; show({ busy, round: number, status: report.status });
+      return report.status === 'OBSERVED_CHECKS_PASSED';
+    }
+    async function run() {
+      if (busy || retired) return; busy = true; button.disabled = true;
+      try { const api = await loadRuntime(); for (let i = 1; i <= 3; i++) if (!await round(reports.length + 1, api)) break; }
+      catch (error) { errors.push(errorValue(error)); }
+      finally { current?.dispose(); controller?.abort(); current = null; controller = null; busy = false; button.disabled = false; document.querySelector('#errors').textContent = JSON.stringify(errors, null, 2); show({ busy, completedRounds: reports.length, status: reports.at(-1)?.status || 'NOT_VERIFIED' }); }
+    }
+    button.onclick = () => { void run().catch(error => { errors.push(errorValue(error)); show({ status: 'NOT_VERIFIED', error: errorValue(error) }); }); };
+    window.addEventListener('unhandledrejection', event => { errors.push({ type: 'unhandledrejection', ...errorValue(event.reason) }); document.querySelector('#errors').textContent = JSON.stringify(errors, null, 2); });
+    window.addEventListener('pagehide', () => { retired = true; controller?.abort(); current?.dispose(); current = null; });
+    window.runtimeAvatarLifecycleFixture = { run, reports, errors, get busy() { return busy; } };
+    show({ ready: true, sourceFixture: true, observer: observer(), productionPollEvidence: 'Independent native production pagehide evidence exists; this page measures alive-document disposal only.' });
+  </script>
+</body>
+</html>

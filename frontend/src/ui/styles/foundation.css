@@ -1,0 +1,16 @@
+/* 全局排版；主题 token 集中在 theme.css。 */
+
+* { box-sizing: border-box; }
+
+html, body {
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app { position: fixed; inset: 0; }
+
+.hidden { display: none !important; }

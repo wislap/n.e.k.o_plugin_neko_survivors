@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><base href="/">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+  <title>React UI · canonical visual parity</title>
+  <!-- Identical sampling rule to visual-reference-server.py; product CSS is unchanged. -->
+  <style id="visual-parity-freeze">*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}</style>
+</head>
+<body>
+  <main id="app" class="game-shell"><div id="visual-parity-game" class="game-canvas" hidden></div><div id="root"></div></main>
+  <script type="module">
+    import React, { useState } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { createGameSession, getCharacterChoices, getDifficultyChoices, isGameSave, convertLegacyProgress } from '../../src/game/index.ts';
+    import { GameScreen } from '../../src/ui/GameScreen.tsx';
+    import { I18nProvider } from '../../src/ui/i18n.tsx';
+    import { DESKTOP_PRESENTATION } from '../../src/presentation/profile.ts';
+    import { UiSymbols } from '../../src/ui/components/UiSymbols.tsx';
+    import '../../src/ui/styles/game.css';
+    const parameters = new URLSearchParams(location.search);
+    const requested = ({paused:'pause',result:'results','endless-prompt':'endless'})[parameters.get('scene')] || parameters.get('scene') || 'title';
+    const variant = parameters.get('variant') || 'rich';
+    const composite = parameters.get('composite')==='1';
+    if (parameters.get('freeze') === '0') document.querySelector('#visual-parity-freeze').remove();
+    const fixture = { side:'react',sourceFixture:true,hudNow:0,mode:composite?'composite':'ui-only',supportedScenes:['title','character','shop','upgrade','pause','results','endless','hud'],
+      requestedScene:requested,ready:false,canonical:{seed:69,difficulty:'normal',hasSave:false,audioEnabled:true,characterId:'yui',partySize:1},
+      sampling:'Animations/transitions disabled unless freeze=0. Public save decoding/GameScreen only; no runtime/host/storage. Capture both pages in the foreground with the real pointer moved to common blank coordinates (5,360); fixture does not synthesize hover.',assertions:[] };
+    window.visualParity = fixture;
+    let game = createGameSession(), model, warmupSnapshot, replaceVisibleSnapshot, gpu, disposed=false;
+    fixture.renderScope=composite?'Real production GPU renderer/public title frame plus GameScreen, sampled at nowMs=0.':'UI-only with SVG HUD bars; root idle background is intentionally excluded.';
+    window.addEventListener('pagehide',()=>{
+      disposed=true;
+      try {gpu?.dispose();fixture.rendererDisposed=gpu?.diagnostics;}
+      catch(error) {fixture.disposeError=String(error);}
+    },{once:true});
+    const characters = getCharacterChoices(), difficulties = getDifficultyChoices(), h = React.createElement;
+    function assert(condition,label) { fixture.assertions.push({label,passed:!!condition}); if(!condition)throw new Error('NOT_PAIRED: '+label); }
+    async function loadCanonical() {
+      if(['title','character'].includes(requested))return;
+      const origin = new URL(parameters.get('referenceOrigin') || '');
+      if(origin.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(origin.hostname)||!origin.port||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash)throw new Error('Explicit loopback referenceOrigin is required for shared canonical data');
+      const source=await import(origin.origin+'/reference/canonical.js');
+      model=await source.buildCanonical(requested,variant);
+      fixture.canonicalDataHash=await source.canonicalHash(model);fixture.canonicalData=model.expected;fixture.metadata=model.metadata;
+      fixture.warmupDataHash=await source.canonicalHash({save:model.warmupSave});
+      const imported=convertLegacyProgress({run:model.save,meta:null});
+      assert(imported && isGameSave(imported.run),'explicit legacy import produces current strict save');
+      game=createGameSession({save:imported.run});
+      if(requested==='pause')assert(game.dispatch({type:'pause'}).ok,'public pause transition');
+      const snapshot=game.readUi(),player=snapshot.players[0],expected=model.expected.player;
+      assert(snapshot.phase===({pause:'paused',results:'result',endless:'endless-prompt',hud:'playing'})[requested]||snapshot.phase===requested,'restored phase');
+      assert(snapshot.wave===model.waveIndex+1,'restored wave');
+      if(requested==='results')assert(snapshot.canRetry===model.expected.canRetry,'ordinary-death retry availability');
+      if(['shop','upgrade','pause','results','endless','hud'].includes(requested)) {
+        // The shared save was captured before actual old menu mutations. No
+        // snapshot field is overridden to manufacture frozen HUD chrome.
+        const warmup=convertLegacyProgress({run:model.warmupSave,meta:null});
+        assert(warmup && isGameSave(warmup.run),'explicit pre-menu legacy import');
+        warmupSnapshot=createGameSession({save:warmup.run}).readUi();
+        assert(warmupSnapshot.phase==='playing','public HUD warmup phase');
+        for(const key of ['hp','level','xp','materials'])assert(warmupSnapshot.players[0][key]===model.warmupSave[key],'actual pre-menu chrome '+key);
+        fixture.warmupSnapshot=warmupSnapshot;
+      }
+      for(const key of ['characterId','hp','maxHp','level','xp','materials'])assert(player[key]===expected[key],'actual player '+key);
+      assert(Object.entries(expected.stats).every(([key,value])=>Math.abs(player.statDetails.find(row=>row.statId===key).value-value)<1e-9),'actual old-rule stat values');
+      assert(JSON.stringify(player.weapons.map(w=>({id:w.definitionId,level:w.level})))===JSON.stringify(expected.weapons),'actual weapon loadout');
+      if(requested==='shop') {
+        assert(JSON.stringify(snapshot.offers.map(o=>({kind:o.kind,id:o.definitionId,price:o.price,sold:o.sold,locked:o.locked})))===JSON.stringify(model.expected.offers),'actual old Shop offers/prices/sold/locked');
+        assert(JSON.stringify(snapshot.rewards.map(r=>({id:r.definitionId,sellValue:r.sellValue})))===JSON.stringify(model.expected.rewards.map(r=>({id:r.id,sellValue:r.sellValue}))),'actual old reward roll and sell values');
+      }
+      if(requested==='upgrade')assert(JSON.stringify(snapshot.upgrades.map(u=>({id:u.id,rarity:u.rarity})))===JSON.stringify(model.expected.upgrades),'actual old 3-option upgrade roll');
+    }
+    function App() {
+      const [snapshot,setSnapshot]=useState(warmupSnapshot||game.readUi());
+      replaceVisibleSnapshot=setSnapshot;
+      const [audio,setAudio]=useState({enabled:true,master:.65,sfx:.7,music:.45});
+      function dispatch(command) {
+        fixture.lastCommand=command;fixture.lastCommandResult=game.dispatch(command);fixture.ready=false;fixture.scene=game.readUi().phase;
+        document.body.dataset.visualParityReady='false';setSnapshot(game.readUi());
+      }
+      return h(I18nProvider,{locale:'zh-CN'},h(React.Fragment,null,h(UiSymbols),h(GameScreen,{
+        snapshot,characters,presentation:DESKTOP_PRESENTATION,hudNow:0,
+        canContinue:false,backend:'webgl2',hostMode:'standalone',audio,
+        onExit:()=>{fixture.lastAction='exit';},
+        dispatch,onContinue:()=>{fixture.lastAction='continue-unused';},
+        onImportLegacy:()=>{fixture.lastAction='import-unused';},onSave:()=>false,onAudio:setAudio,effectOpacity:1,onEffectOpacity:()=>{}
+      })));
+    }
+    async function waitFor(condition,phase) {
+      const deadline=performance.now()+10000;
+      while(!condition()) {if(performance.now()>=deadline)throw new Error('NOT_VERIFIED: '+phase+' deadline');await new Promise(resolve=>setTimeout(resolve,20));}
+    }
+    async function ready() {
+      if(warmupSnapshot) {
+        await document.fonts.ready;
+        await waitFor(hudAssetsReady,'measured and decoded HUD warmup');
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        fixture.hudWarmup={completed:true,phase:warmupSnapshot.phase,materials:warmupSnapshot.players[0].materials,level:warmupSnapshot.players[0].level,viewport:{width:innerWidth,height:innerHeight}};
+        replaceVisibleSnapshot(game.readUi());
+      }
+      if(requested==='character') {
+        await waitFor(()=>document.querySelector('[data-act="start"]'),'React title commit');document.querySelector('[data-act="start"]').click();
+        await waitFor(()=>document.querySelector('#char-grid .card'),'public selection');
+      } else {
+        const selector={title:'.title-scene',shop:'.shop-screen',upgrade:'[data-up]',pause:'.pause-title',results:'.result-stats',endless:'.result-stats',hud:'#hud'}[requested];
+        await waitFor(()=>document.querySelector(selector),'actual '+requested+' markup');
+      }
+      if(requested==='shop'&&variant==='sell') {
+        document.querySelector('[data-slot-idx="0"]').click();await waitFor(()=>document.querySelector('.sell-bar'),'actual weapon selection');
+      }
+      await document.fonts.ready;
+      if(['shop','upgrade','pause','results','endless','hud'].includes(requested)) {
+        await waitFor(hudAssetsReady,'decoded static HUD assets');
+      }
+      await waitFor(()=>[...document.querySelectorAll('.sprite-img')].every(image=>image.complete),'sprite load');
+      await Promise.all([...document.querySelectorAll('.sprite-img')].map(image=>image.decode().catch(()=>{})));
+      if(composite)await paintComposite();
+      await new Promise(resolve=>setTimeout(resolve,30));
+      fixture.failedImages=[...document.querySelectorAll('.sprite-img')].filter(image=>!image.naturalWidth).map(image=>image.getAttribute('src'));
+      fixture.scene=requested;fixture.ready=fixture.failedImages.length===0;fixture.characterCount=document.querySelectorAll('#char-grid .card').length;
+      fixture.restoredSnapshot=game.readUi();document.body.dataset.visualParityReady=String(fixture.ready);
+    }
+    function hudAssetsReady() {
+      const hud=document.querySelector('[data-hud-assets-ready]');
+      const error=hud?.getAttribute('data-hud-assets-error');
+      if(error)throw new Error('NOT_VERIFIED: HUD assets: '+error);
+      return hud?.getAttribute('data-hud-assets-ready')==='true';
+    }
+    async function paintComposite() {
+      if(disposed)throw new Error('Fixture has been retired');
+      if(!gpu) {
+        const {createGameRenderer}=await import('../../src/rendering/index.ts');
+        const container=document.querySelector('#visual-parity-game');container.hidden=false;
+        gpu=await createGameRenderer({container,width:innerWidth,height:innerHeight,assetBaseUrl:'/assets',presentation:DESKTOP_PRESENTATION});
+        if(disposed) {gpu.dispose();throw new Error('Fixture retired during GPU initialization');}
+      }
+      game.setViewport(innerWidth,innerHeight);gpu.resize(innerWidth,innerHeight);
+      await waitFor(()=>{
+        if(disposed)throw new Error('Fixture has been retired');
+        gpu.render(game.readFrame(),0);
+        const assets=gpu.diagnostics.assets;
+        if(assets.failed.length)throw new Error('NOT_VERIFIED: GPU assets: '+assets.failed.join(','));
+        return assets.pending===0;
+      },'real GPU asset loading');
+      gpu.render(game.readFrame(),0);
+      fixture.backend=gpu.backend;fixture.rendererDiagnostics=gpu.diagnostics;fixture.renderNowMs=0;
+    }
+    try {
+      if(!fixture.supportedScenes.includes(requested))throw new Error('Unsupported paired scene: '+requested);
+      if(composite&&!['title','character'].includes(requested))throw new Error('Composite sampling supports title/character only');
+      await loadCanonical();createRoot(document.querySelector('#root')).render(h(App));await ready();
+    } catch(error) {
+      fixture.error=String(error);document.body.dataset.visualParityReady='false';
+      const pre=document.createElement('pre');pre.textContent=fixture.error;document.body.appendChild(pre);
+    }
+  </script>
+</body>
+</html>
